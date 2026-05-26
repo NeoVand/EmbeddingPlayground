@@ -173,6 +173,9 @@
 </script>
 
 <main class="lab">
+	<div class="cloud-fill">
+		<SemanticCloud {points} {selectedId} pathPoints={pathIds} mode="pca" />
+	</div>
 	<aside class="left">
 		<div class="card glass">
 			<div class="head">
@@ -214,10 +217,6 @@
 		</div>
 	</aside>
 
-	<section class="center">
-		<SemanticCloud {points} {selectedId} pathPoints={pathIds} mode="pca" />
-	</section>
-
 	<aside class="right">
 		<div class="card glass">
 			<div class="head">
@@ -252,27 +251,34 @@
 
 <style>
 	.lab {
-		display: grid;
-		grid-template-columns: 360px 1fr 380px;
+		position: relative;
+		display: flex;
 		gap: 10px;
 		min-height: 0;
 		height: 100%;
 	}
+	.cloud-fill {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+	}
 	.left,
 	.right {
+		position: relative;
+		z-index: 2;
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
 		min-height: 0;
+		overflow-y: auto;
+		flex-shrink: 0;
+	}
+	.left {
+		width: 340px;
 	}
 	.right {
-		overflow-y: auto;
-	}
-	.center {
-		min-height: 0;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
+		width: 380px;
+		margin-left: auto;
 	}
 	.card {
 		padding: 12px;

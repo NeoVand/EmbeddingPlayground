@@ -225,6 +225,9 @@
 </script>
 
 <main class="lab">
+	<div class="cloud-fill">
+		<SemanticCloud {points} {links} mode="pca" selectedId={queryResult ? 'query' : null} />
+	</div>
 	<aside class="left">
 		<div class="card glass">
 			<div class="head">
@@ -323,10 +326,6 @@
 		</div>
 	</aside>
 
-	<section class="center">
-		<SemanticCloud {points} {links} mode="pca" selectedId={queryResult ? 'query' : null} />
-	</section>
-
 	<aside class="right">
 		<div class="card glass query-card">
 			<div class="head">
@@ -401,18 +400,33 @@
 
 <style>
 	.lab {
-		display: grid;
-		grid-template-columns: 340px 1fr 420px;
+		position: relative;
+		display: flex;
 		gap: 10px;
 		min-height: 0;
 		height: 100%;
 	}
+	.cloud-fill {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+	}
 	.left,
 	.right {
+		position: relative;
+		z-index: 2;
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
 		min-height: 0;
+		flex-shrink: 0;
+	}
+	.left {
+		width: 320px;
+	}
+	.right {
+		width: 400px;
+		margin-left: auto;
 	}
 	.left :global(.scrollable),
 	.right :global(.scrollable),
@@ -420,12 +434,6 @@
 	.right :global(.results-card) {
 		flex: 1;
 		min-height: 0;
-	}
-	.center {
-		min-height: 0;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
 	}
 	.card {
 		padding: 12px;

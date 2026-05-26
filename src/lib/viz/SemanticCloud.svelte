@@ -83,6 +83,10 @@
 	let linkGroup: THREE.Group | null = null;
 	let pathLine: THREE.Line | null = null;
 	let groundGrid: THREE.GridHelper | null = null;
+	let dataCube: THREE.LineSegments | null = null;
+	let axisGizmo: THREE.Group | null = null;
+	let ambient: THREE.AmbientLight | null = null;
+	let dirLight: THREE.DirectionalLight | null = null;
 
 	const raycaster = new THREE.Raycaster();
 	raycaster.params.Points = { threshold: 0.04 };
@@ -129,7 +133,21 @@
 		controls.minDistance = 0.4;
 		controls.maxDistance = 12;
 
+		// Subtle three-point lighting so spheres read as actual 3D objects
+		// rather than flat discs. The intensities are low enough that hue still
+		// dominates and labels stay readable.
+		ambient = new THREE.AmbientLight(0xffffff, 0.55);
+		scene.add(ambient);
+		dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+		dirLight.position.set(2.5, 4, 2);
+		scene.add(dirLight);
+		const fill = new THREE.DirectionalLight(0x6a86c8, 0.25);
+		fill.position.set(-3, 1, -2);
+		scene.add(fill);
+
 		buildGround();
+		buildDataCube();
+		buildAxisGizmo();
 
 		canvas!.addEventListener('mousemove', onMouseMove);
 		canvas!.addEventListener('mouseleave', () => {
@@ -149,11 +167,108 @@
 		}
 		if (hideGrid) return;
 		const grid = new THREE.GridHelper(4, 16, 0x2a3038, 0x1a1f25);
-		grid.position.y = -1.3;
+		grid.position.y = -1.5;
 		(grid.material as THREE.Material).transparent = true;
 		(grid.material as THREE.Material).opacity = 0.35;
 		groundGrid = grid;
 		scene.add(grid);
+	}
+
+	// A very faint wireframe cube at the data extents. Reads as a "stage" for
+	// the data, gives the eye three lines of perspective for free, and stops
+	// the scene from feeling like it's floating in featureless space.
+	function buildDataCube() {
+		if (dataCube) {
+			scene.remove(dataCube);
+			dataCube.geometry.dispose();
+			(dataCube.material as THREE.Material).dispose();
+		}
+		const r = 1.5;
+		const verts: number[] = [];
+		const c: [number, number, number][] = [
+			[-r, -r, -r],
+			[r, -r, -r],
+			[r, r, -r],
+			[-r, r, -r],
+			[-r, -r, r],
+			[r, -r, r],
+			[r, r, r],
+			[-r, r, r]
+		];
+		const edges: [number, number][] = [
+			[0, 1],
+			[1, 2],
+			[2, 3],
+			[3, 0],
+			[4, 5],
+			[5, 6],
+			[6, 7],
+			[7, 4],
+			[0, 4],
+			[1, 5],
+			[2, 6],
+			[3, 7]
+		];
+		for (const [a, b] of edges) {
+			verts.push(...c[a], ...c[b]);
+		}
+		const geo = new THREE.BufferGeometry();
+		geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+		const mat = new THREE.LineBasicMaterial({
+			color: 0x4a5260,
+			transparent: true,
+			opacity: 0.18
+		});
+		dataCube = new THREE.LineSegments(geo, mat);
+		scene.add(dataCube);
+	}
+
+	// Axis gizmo at the back-bottom-left corner of the cube — three short
+	// colored arrows pointing along +X / +Y / +Z so users can orient the
+	// scene at a glance.
+	function buildAxisGizmo() {
+		if (axisGizmo) {
+			axisGizmo.traverse((o: THREE.Object3D) => {
+				const obj = o as THREE.Mesh & THREE.Line;
+				obj.geometry?.dispose?.();
+				if (obj.material) (obj.material as THREE.Material).dispose?.();
+				for (const child of [...o.children]) {
+					if (child instanceof CSS2DObject) {
+						child.element.remove();
+						o.remove(child);
+					}
+				}
+			});
+			scene.remove(axisGizmo);
+		}
+		const origin = new THREE.Vector3(-1.5, -1.5, -1.5);
+		const len = 0.4;
+		const axes: { dir: [number, number, number]; color: number; label: string }[] = [
+			{ dir: [1, 0, 0], color: 0xc26b6b, label: 'x' },
+			{ dir: [0, 1, 0], color: 0x6dbf85, label: 'y' },
+			{ dir: [0, 0, 1], color: 0x7188c8, label: 'z' }
+		];
+		const group = new THREE.Group();
+		for (const a of axes) {
+			const tip = new THREE.Vector3(origin.x + a.dir[0] * len, origin.y + a.dir[1] * len, origin.z + a.dir[2] * len);
+			const geo = new THREE.BufferGeometry().setFromPoints([origin.clone(), tip.clone()]);
+			const mat = new THREE.LineBasicMaterial({
+				color: a.color,
+				transparent: true,
+				opacity: 0.7
+			});
+			group.add(new THREE.Line(geo, mat));
+
+			const el = document.createElement('div');
+			el.className = 'axis-tick';
+			el.textContent = a.label;
+			el.style.setProperty('--axis-color', `#${a.color.toString(16).padStart(6, '0')}`);
+			const label = new CSS2DObject(el);
+			label.position.copy(tip).add(new THREE.Vector3(a.dir[0] * 0.06, a.dir[1] * 0.06, a.dir[2] * 0.06));
+			group.add(label);
+		}
+		axisGizmo = group;
+		scene.add(group);
 	}
 
 	function onResize() {
@@ -253,13 +368,13 @@
 			raw = projectPCA(valid.map((p) => p.vector));
 		}
 
-		// Normalize so positions fit in roughly a unit sphere.
+		// Normalize so positions fit roughly inside the wireframe data cube.
 		let maxR = 0;
 		for (const [x, y, z] of raw) {
 			const r = Math.sqrt(x * x + y * y + z * z);
 			if (r > maxR) maxR = r;
 		}
-		const scale = maxR > 0 ? 1.4 / maxR : 1;
+		const scale = maxR > 0 ? 1.25 / maxR : 1;
 		for (let i = 0; i < valid.length; i++) {
 			coords.set(valid[i].id, [raw[i][0] * scale, raw[i][1] * scale, raw[i][2] * scale]);
 		}
@@ -368,8 +483,15 @@
 				group.add(core);
 				obj = group;
 			} else {
-				const mat = new THREE.MeshBasicMaterial({
+				// Phong (not Basic) so the sphere catches the directional light
+				// and reads as a real 3D object. emissive keeps the chosen hue
+				// dominant even in dim regions of the scene.
+				const mat = new THREE.MeshPhongMaterial({
 					color: new THREE.Color(r, g, b),
+					emissive: new THREE.Color(r, g, b),
+					emissiveIntensity: 0.45,
+					specular: 0xffffff,
+					shininess: 60,
 					transparent: true,
 					opacity: 1
 				});
@@ -656,6 +778,17 @@
 			font-size 0.2s;
 		user-select: none;
 		-webkit-user-select: none;
+	}
+	.wrap :global(.axis-tick) {
+		font-family: 'Inter', sans-serif;
+		font-weight: 600;
+		font-size: 9px;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--axis-color, #888);
+		transform: translate(-50%, -50%);
+		pointer-events: none;
+		opacity: 0.65;
 	}
 	.wrap :global(.cloud-slot-label.is-selected) {
 		font-size: 13px;

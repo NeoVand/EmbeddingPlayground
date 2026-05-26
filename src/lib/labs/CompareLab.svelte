@@ -254,6 +254,9 @@
 </script>
 
 <main class="lab">
+	<div class="cloud-fill">
+		<SemanticCloud {points} {links} mode="pca" />
+	</div>
 	<aside class="left">
 		<div class="card glass">
 			<div class="head">
@@ -310,12 +313,8 @@
 		</div>
 	</aside>
 
-	<section class="center">
-		<SemanticCloud {points} {links} mode="pca" />
-	</section>
-
 	<aside class="right">
-		<div class="card glass">
+		<div class="card glass metrics-card">
 			<div class="head">
 				<span class="eyebrow">A · B metrics</span>
 				<span class="meta tabular">{playground.model.shortName}</span>
@@ -323,27 +322,73 @@
 			{#if !metrics}
 				<p class="empty">Embed both A and B to compare.</p>
 			{:else}
-				<dl class="metrics">
-					<div class="row hero">
-						<dt>cosine</dt>
-						<dd class="tabular">{metrics.cos.toFixed(4)}</dd>
-						<div class="meter">
-							<div
-								class="fill"
-								style:width={`${Math.abs(metrics.cos) * 100}%`}
-								class:neg={metrics.cos < 0}
-							></div>
+				<!-- COSINE — direction similarity, signed bar from -1 to +1 -->
+				<div class="metric-block">
+					<div class="metric-row">
+						<span class="metric-name">cosine</span>
+						<span class="metric-value tabular" class:pos={metrics.cos > 0} class:neg={metrics.cos < 0}
+							>{metrics.cos.toFixed(4)}</span
+						>
+					</div>
+					<div class="cos-bar">
+						<div class="cos-track"></div>
+						<div class="cos-ticks no-select">
+							<span>−1</span>
+							<span>0</span>
+							<span>+1</span>
 						</div>
+						<div
+							class="cos-marker"
+							class:neg={metrics.cos < 0}
+							style:left={`${50 + metrics.cos * 50}%`}
+						></div>
 					</div>
-					<div class="row">
-						<dt>dot product</dt>
-						<dd class="tabular">{metrics.dotV.toFixed(4)}</dd>
+					<div class="metric-note no-select">
+						How similar in <b>direction</b>. 1 means same heading; 0 means perpendicular; −1 means opposite.
 					</div>
-					<div class="row">
-						<dt>euclidean</dt>
-						<dd class="tabular">{metrics.eucl.toFixed(4)}</dd>
+				</div>
+
+				<div class="hairline"></div>
+
+				<!-- DOT PRODUCT — equals cosine for normalized; explain why -->
+				<div class="metric-block">
+					<div class="metric-row">
+						<span class="metric-name">dot product</span>
+						<span class="metric-value tabular" class:pos={metrics.dotV > 0} class:neg={metrics.dotV < 0}
+							>{metrics.dotV.toFixed(4)}</span
+						>
 					</div>
-				</dl>
+					<div class="metric-note no-select">
+						{#if Math.abs(metrics.normA - 1) < 0.001 && Math.abs(metrics.normB - 1) < 0.001}
+							Equal to cosine because both vectors are unit-length (‖A‖=‖B‖=1). The model already normalizes embeddings.
+						{:else}
+							Unnormalized projection of one vector onto the other. ‖A‖={metrics.normA.toFixed(3)}, ‖B‖={metrics.normB.toFixed(3)}.
+						{/if}
+					</div>
+				</div>
+
+				<div class="hairline"></div>
+
+				<!-- EUCLIDEAN — straight-line distance, range [0, 2] for normalized -->
+				<div class="metric-block">
+					<div class="metric-row">
+						<span class="metric-name">euclidean</span>
+						<span class="metric-value tabular">{metrics.eucl.toFixed(4)}</span>
+					</div>
+					<div class="eucl-bar">
+						<div class="eucl-track"></div>
+						<div class="eucl-ticks no-select">
+							<span>0</span>
+							<span class="orth">√2</span>
+							<span>2</span>
+						</div>
+						<div class="eucl-marker" style:left={`${Math.min(100, (metrics.eucl / 2) * 100)}%`}></div>
+						<div class="eucl-orth" style:left={`${(Math.SQRT2 / 2) * 100}%`}></div>
+					</div>
+					<div class="metric-note no-select">
+						Straight-line <b>distance</b>. 0 = identical; √2 ≈ 1.41 = perpendicular; 2 = opposite. Inverse of cosine for unit vectors: <code>‖A−B‖ = √(2 − 2·cos)</code>.
+					</div>
+				</div>
 			{/if}
 		</div>
 
@@ -379,25 +424,34 @@
 
 <style>
 	.lab {
-		display: grid;
-		grid-template-columns: 360px 1fr 360px;
+		position: relative;
+		display: flex;
 		gap: 10px;
 		min-height: 0;
 		height: 100%;
 	}
+	.cloud-fill {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+	}
 	.left,
 	.right {
+		position: relative;
+		z-index: 2;
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
 		min-height: 0;
 		overflow-y: auto;
+		flex-shrink: 0;
 	}
-	.center {
-		min-height: 0;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
+	.left {
+		width: 340px;
+	}
+	.right {
+		width: 360px;
+		margin-left: auto;
 	}
 	.card {
 		padding: 12px;
@@ -537,52 +591,164 @@
 		font-style: italic;
 		margin: 0;
 	}
-	dl.metrics {
-		margin: 0;
+	.metric-block {
 		display: flex;
 		flex-direction: column;
-		gap: 3px;
+		gap: 6px;
+		padding: 4px 0;
 	}
-	.row {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		gap: 8px;
+	.metric-row {
+		display: flex;
+		justify-content: space-between;
 		align-items: baseline;
-		font-size: 12px;
 	}
-	.row.hero {
-		font-size: 14px;
+	.metric-name {
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
 	}
-	.row.hero dt {
+	.metric-value {
+		font-size: 18px;
+		font-weight: 700;
 		color: var(--text-primary);
+		font-variant-numeric: tabular-nums;
+	}
+	.metric-value.pos {
+		color: oklch(0.82 0.16 200);
+	}
+	.metric-value.neg {
+		color: oklch(0.78 0.18 30);
+	}
+	.metric-note {
+		font-size: 10px;
+		color: var(--text-subtle);
+		line-height: 1.5;
+	}
+	.metric-note b {
+		color: var(--text-secondary);
 		font-weight: 600;
 	}
-	.row.hero dd {
-		color: var(--accent);
-		font-weight: 700;
-	}
-	dt {
+	.metric-note code {
+		font-family: ui-monospace, SFMono-Regular, monospace;
+		font-size: 10px;
+		background: var(--surface-2);
+		padding: 1px 4px;
+		border-radius: 3px;
 		color: var(--text-muted);
 	}
-	dd {
-		margin: 0;
-		color: var(--text-primary);
+	.hairline {
+		height: 1px;
+		background: var(--border);
+		margin: 4px 0;
 	}
-	.meter {
-		grid-column: 1 / -1;
-		height: 4px;
-		background: var(--surface-2);
-		border-radius: 2px;
-		overflow: hidden;
-		margin-top: 2px;
+
+	/* Cosine bar: -1 ............. 0 ............. +1, marker is a colored dot. */
+	.cos-bar {
+		position: relative;
+		height: 24px;
+		margin: 2px 0;
 	}
-	.fill {
-		height: 100%;
-		background: var(--accent);
-		transition: width 0.25s ease;
+	.cos-track {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 11px;
+		height: 2px;
+		background: linear-gradient(
+			to right,
+			oklch(0.78 0.18 30) 0%,
+			var(--surface-2) 50%,
+			oklch(0.82 0.16 200) 100%
+		);
+		opacity: 0.5;
+		border-radius: 1px;
 	}
-	.fill.neg {
-		background: var(--contrast);
+	.cos-ticks {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		justify-content: space-between;
+		font-size: 9px;
+		color: var(--text-subtle);
+		font-variant-numeric: tabular-nums;
+		letter-spacing: 0.02em;
+	}
+	.cos-marker {
+		position: absolute;
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		top: 5px;
+		transform: translateX(-50%);
+		background: oklch(0.82 0.16 200);
+		box-shadow: 0 0 8px oklch(0.82 0.16 200 / 0.5);
+		transition: left 0.25s ease;
+	}
+	.cos-marker.neg {
+		background: oklch(0.78 0.18 30);
+		box-shadow: 0 0 8px oklch(0.78 0.18 30 / 0.5);
+	}
+
+	/* Euclidean bar: 0 ........ √2 ........ 2, marker + orthogonality tick */
+	.eucl-bar {
+		position: relative;
+		height: 24px;
+		margin: 2px 0;
+	}
+	.eucl-track {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 11px;
+		height: 2px;
+		background: linear-gradient(
+			to right,
+			oklch(0.82 0.16 200) 0%,
+			var(--surface-2) 70.7%,
+			oklch(0.78 0.18 30) 100%
+		);
+		opacity: 0.5;
+		border-radius: 1px;
+	}
+	.eucl-ticks {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		justify-content: space-between;
+		font-size: 9px;
+		color: var(--text-subtle);
+		font-variant-numeric: tabular-nums;
+	}
+	.eucl-ticks .orth {
+		position: absolute;
+		left: 70.7%;
+		transform: translateX(-50%);
+		color: var(--text-muted);
+	}
+	.eucl-marker {
+		position: absolute;
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		top: 5px;
+		transform: translateX(-50%);
+		background: var(--text-primary);
+		box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+		transition: left 0.25s ease;
+	}
+	.eucl-orth {
+		position: absolute;
+		top: 8px;
+		width: 1px;
+		height: 8px;
+		background: var(--text-subtle);
+		transform: translateX(-50%);
 	}
 	ul.pairs {
 		list-style: none;
