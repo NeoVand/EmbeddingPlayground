@@ -1,0 +1,200 @@
+@import 'tailwindcss';
+
+/* Default token values — overwritten at runtime by the reactive theme.
+   They exist so SSR and the first paint look right before JS hydrates. */
+:root {
+	--bg-base: oklch(0.07 0.008 200);
+	--surface-0: oklch(0.11 0.008 200 / 0.92);
+	--surface-1: oklch(0.16 0.0096 200 / 0.94);
+	--surface-2: oklch(0.21 0.0128 200 / 0.96);
+	--border: oklch(0.26 0.027 200 / 0.4);
+	--border-strong: oklch(0.34 0.054 200 / 0.6);
+	--text-primary: oklch(0.96 0.008 200);
+	--text-secondary: oklch(0.883 0.008 200);
+	--text-muted: oklch(0.691 0.0096 200);
+	--text-subtle: oklch(0.499 0.0112 200);
+	--accent: oklch(0.78 0.18 200);
+	--accent-muted: oklch(0.55 0.099 200 / 0.7);
+	--accent-strong: oklch(0.88 0.18 200);
+	--accent-glow: oklch(0.78 0.18 200 / 0.35);
+	--contrast: oklch(0.78 0.171 30);
+	--contrast-muted: oklch(0.6 0.09 30 / 0.7);
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	background: var(--bg-base);
+	color: var(--text-primary);
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-feature-settings: 'cv11', 'ss01', 'ss03';
+	-webkit-tap-highlight-color: transparent;
+}
+
+/* Readouts, lists, hover values, labels — all SELECTABLE by default.
+   Selection is only disabled on the chrome that needs it (buttons, chips). */
+button,
+.chip,
+.eyebrow,
+.no-select {
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+
+::selection {
+	background: var(--accent-glow);
+	color: var(--text-primary);
+}
+
+/* Numerics: tabular for HUD readouts. */
+.tabular {
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: 'tnum', 'cv11';
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: var(--border);
+	border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: var(--border-strong);
+}
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--border) transparent;
+}
+
+/* Glass surface — the signature look of our HUD panels. */
+.glass {
+	background: var(--surface-0);
+	border: 1px solid var(--border);
+	backdrop-filter: blur(14px) saturate(1.15);
+	-webkit-backdrop-filter: blur(14px) saturate(1.15);
+	box-shadow:
+		0 0 0 1px var(--border) inset,
+		0 8px 32px rgba(0, 0, 0, 0.55),
+		0 0 0 var(--accent-glow);
+	border-radius: 10px;
+}
+.glass-strong {
+	background: var(--surface-1);
+	border: 1px solid var(--border-strong);
+	backdrop-filter: blur(20px) saturate(1.2);
+	-webkit-backdrop-filter: blur(20px) saturate(1.2);
+	box-shadow:
+		0 0 0 1px var(--border-strong) inset,
+		0 12px 48px rgba(0, 0, 0, 0.6);
+	border-radius: 12px;
+}
+
+/* Subtle background grid for the canvas viewport. */
+.grid-bg {
+	background-color: var(--bg-base);
+	background-image:
+		linear-gradient(to right, var(--border) 1px, transparent 1px),
+		linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+	background-size: 80px 80px;
+	background-position: -1px -1px;
+}
+
+/* Focusable controls get a visible accent ring. */
+button,
+input,
+textarea,
+select {
+	outline: none;
+}
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+	box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* Inputs allow selection */
+input,
+textarea {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+/* Hairline divider */
+.hairline {
+	border-color: var(--border);
+}
+
+/* Small caps label — for HUD section headers. */
+.eyebrow {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--text-subtle);
+}
+
+/* Driver.js theme — match our glass surfaces. */
+.driver-popover.driverjs-theme {
+	background: var(--surface-2) !important;
+	border: 1px solid var(--border-strong) !important;
+	color: var(--text-primary) !important;
+	border-radius: 10px !important;
+	backdrop-filter: blur(20px) saturate(1.15);
+	box-shadow:
+		0 0 0 1px var(--border-strong) inset,
+		0 16px 48px rgba(0, 0, 0, 0.6) !important;
+	max-width: 380px;
+}
+.driverjs-theme .driver-popover-title {
+	color: var(--text-primary) !important;
+	font-weight: 700 !important;
+	font-size: 14px !important;
+	letter-spacing: 0.01em;
+}
+.driverjs-theme .driver-popover-description {
+	color: var(--text-secondary) !important;
+	font-size: 12px !important;
+	line-height: 1.55 !important;
+}
+.driverjs-theme .driver-popover-description b {
+	color: var(--text-primary) !important;
+	font-weight: 600;
+}
+.driverjs-theme .driver-popover-progress-text {
+	color: var(--text-subtle) !important;
+	font-size: 10px !important;
+}
+.driverjs-theme .driver-popover-prev-btn,
+.driverjs-theme .driver-popover-next-btn {
+	background: var(--surface-1) !important;
+	color: var(--text-secondary) !important;
+	border: 1px solid var(--border) !important;
+	border-radius: 5px !important;
+	padding: 6px 14px !important;
+	text-shadow: none !important;
+	box-shadow: none !important;
+	font-size: 12px !important;
+	font-weight: 500 !important;
+}
+.driverjs-theme .driver-popover-next-btn {
+	background: var(--accent-glow) !important;
+	color: var(--text-primary) !important;
+	border-color: var(--accent) !important;
+}
+.driverjs-theme .driver-popover-close-btn {
+	color: var(--text-subtle) !important;
+}
+.driverjs-theme .driver-popover-arrow-side-left.driver-popover-arrow,
+.driverjs-theme .driver-popover-arrow {
+	border-color: var(--surface-2) !important;
+}
