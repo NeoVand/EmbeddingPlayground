@@ -131,7 +131,7 @@ function createPlayground() {
 	 * Embed a single text. Cache-aware. Returns the full EmbeddingResult
 	 * (vector, tokens if available, etc.). `force: true` bypasses the cache.
 	 */
-	async function embedText(text: string, opts: { force?: boolean } = {}): Promise<EmbeddingResult> {
+	async function embedText(text: string, _opts: { force?: boolean } = {}): Promise<EmbeddingResult> {
 		const t = text.trim();
 		if (!t) throw new Error('Empty text');
 
@@ -141,20 +141,12 @@ function createPlayground() {
 			const e = await ensureEmbedder();
 			const backend = e.backend;
 
-			if (!opts.force) {
-				const cached = cache.get(modelId, backend, t);
-				if (cached) {
-					return {
-						vector: cached,
-						dim: cached.length,
-						backend,
-						model: e.model,
-						text: t,
-						elapsedMs: 0
-					} satisfies EmbeddingResult;
-				}
-			}
-
+			// IMPORTANT: don't return a cache stub here. The cache holds only
+			// the pooled vector — re-using it loses per-token vectors and the
+			// inspector falls through to "no tokens available" the next time
+			// the same text is embedded. Always run a fresh forward pass so
+			// the result is complete; still write to the cache so the
+			// corpus-build path (which only needs vectors) stays fast.
 			const r = await e.embed(t);
 			cache.set(modelId, backend, t, r.vector);
 			return r;

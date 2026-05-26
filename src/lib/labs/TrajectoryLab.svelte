@@ -195,7 +195,7 @@
 </script>
 
 <main class="lab">
-	<section class="top">
+	<section class="lab-top">
 		<div class="cloud-fill">
 			<SemanticCloud
 				{points}
@@ -278,7 +278,7 @@
 	</aside>
 	</section>
 
-	<section class="bottom">
+	<section class="lab-bottom">
 		<InspectorRow
 			result={selectedResult}
 			modelShortName={playground.model.shortName}
@@ -296,13 +296,13 @@
 		min-height: 0;
 		height: 100%;
 	}
-	.top {
+	.lab-top {
 		position: relative;
 		display: flex;
 		gap: 10px;
 		min-height: 0;
 	}
-	.bottom {
+	.lab-bottom {
 		min-height: 0;
 		min-width: 0;
 	}
