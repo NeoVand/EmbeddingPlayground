@@ -10,6 +10,8 @@
 
 	import { playground } from '$lib/stores/playground.svelte.js';
 	import SemanticCloud, { type CloudPoint } from '$lib/viz/SemanticCloud.svelte';
+	import InspectorRow from '$lib/components/InspectorRow.svelte';
+	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { cosine } from '$lib/math/similarity.js';
 	import { createLabState } from './labState.svelte.js';
 
@@ -50,10 +52,18 @@
 		}
 	];
 
-	type Prefix = { k: number; word: string; text: string; vector: Float32Array | null };
+	type Prefix = {
+		k: number;
+		word: string;
+		text: string;
+		vector: Float32Array | null;
+		result: EmbeddingResult | null;
+	};
 	let prefixes = $state<Prefix[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
+	// Click-to-inspect selection, defaults to the lurch word (set further down).
+	let userSelectedK = $state<number | null>(null);
 
 	function tokenize(sentence: string): string[] {
 		// Word boundaries with attached trailing punctuation.
@@ -69,8 +79,10 @@
 			k: i + 1,
 			word: w.replace(/[.,;:!?]+$/, ''),
 			text: words.slice(0, i + 1).join(' '),
-			vector: null
+			vector: null,
+			result: null
 		}));
+		userSelectedK = null;
 		if (prefixes.length === 0) return;
 
 		const seq = ++runSeq;
@@ -84,7 +96,7 @@
 				const r = await playground.embedText(prefixes[i].text);
 				if (seq !== runSeq) return;
 				// Re-fetch by index in case the array identity changed (it shouldn't here).
-				prefixes[i] = { ...prefixes[i], vector: r.vector };
+				prefixes[i] = { ...prefixes[i], vector: r.vector, result: r };
 				// Trigger reactivity by reassigning.
 				prefixes = [...prefixes];
 			}
@@ -147,8 +159,18 @@
 	});
 
 	const pathIds = $derived(prefixes.filter((p) => p.vector).map((p) => `p${p.k}`));
-	// Use the lurch word as the "selected" point so its label gets the highlight ring.
-	const selectedId = $derived(biggestJumpK != null ? `p${biggestJumpK}` : null);
+	// Selection: user click wins, otherwise the auto-detected lurch word.
+	const selectedK = $derived(userSelectedK ?? biggestJumpK);
+	const selectedId = $derived(selectedK != null ? `p${selectedK}` : null);
+	const selectedResult = $derived.by<EmbeddingResult | null>(() => {
+		if (selectedK == null) return null;
+		return prefixes.find((p) => p.k === selectedK)?.result ?? null;
+	});
+
+	function selectPoint(id: string) {
+		const m = /^p(\d+)$/.exec(id);
+		if (m) userSelectedK = Number(m[1]);
+	}
 
 	// Per-step displacement: cosine distance from previous prefix.
 	const displacements = $derived.by(() => {
@@ -173,9 +195,16 @@
 </script>
 
 <main class="lab">
-	<div class="cloud-fill">
-		<SemanticCloud {points} {selectedId} pathPoints={pathIds} mode="pca" />
-	</div>
+	<section class="top">
+		<div class="cloud-fill">
+			<SemanticCloud
+				{points}
+				{selectedId}
+				pathPoints={pathIds}
+				mode="pca"
+				onPointClick={selectPoint}
+			/>
+		</div>
 	<aside class="left">
 		<div class="card glass">
 			<div class="head">
@@ -247,15 +276,35 @@
 			{/if}
 		</div>
 	</aside>
+	</section>
+
+	<section class="bottom">
+		<InspectorRow
+			result={selectedResult}
+			modelShortName={playground.model.shortName}
+			title={selectedK != null ? `Prefix #${selectedK}` : 'Selected'}
+			emptyText="Click any word along the path to inspect that prefix's embedding."
+		/>
+	</section>
 </main>
 
 <style>
 	.lab {
+		display: grid;
+		grid-template-rows: 1fr 220px;
+		gap: 10px;
+		min-height: 0;
+		height: 100%;
+	}
+	.top {
 		position: relative;
 		display: flex;
 		gap: 10px;
 		min-height: 0;
-		height: 100%;
+	}
+	.bottom {
+		min-height: 0;
+		min-width: 0;
 	}
 	.cloud-fill {
 		position: absolute;

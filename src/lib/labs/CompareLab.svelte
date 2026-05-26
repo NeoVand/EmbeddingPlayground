@@ -11,6 +11,7 @@
 
 	import { playground } from '$lib/stores/playground.svelte.js';
 	import SemanticCloud, { type CloudPoint, type CloudLink } from '$lib/viz/SemanticCloud.svelte';
+	import InspectorRow from '$lib/components/InspectorRow.svelte';
 	import { cosine, dot, euclidean, norm } from '$lib/math/similarity.js';
 	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { CATEGORY_HUES } from '$lib/corpus/seed.js';
@@ -34,6 +35,19 @@
 	let loadingA = $state(false);
 	let loadingB = $state(false);
 	let loadingExtras = $state(false);
+	// Click-to-inspect — defaults to A on first load.
+	let selectedId = $state<string | null>('A');
+
+	const selectedResult = $derived.by<EmbeddingResult | null>(() => {
+		if (selectedId === 'A') return resultA;
+		if (selectedId === 'B') return resultB;
+		if (selectedId && extraResults.has(selectedId)) return extraResults.get(selectedId) ?? null;
+		return null;
+	});
+
+	function selectPoint(id: string) {
+		selectedId = id;
+	}
 
 	// Hues for extras: cycle through perceptually distinct OKLCH hues.
 	const EXTRA_HUES = [130, 280, 60, 320, 170, 350];
@@ -254,10 +268,11 @@
 </script>
 
 <main class="lab">
-	<div class="cloud-fill">
-		<SemanticCloud {points} {links} mode="pca" />
-	</div>
-	<aside class="left">
+	<section class="top">
+		<div class="cloud-fill">
+			<SemanticCloud {points} {links} mode="pca" {selectedId} onPointClick={selectPoint} />
+		</div>
+		<aside class="left">
 		<div class="card glass">
 			<div class="head">
 				<span class="eyebrow">Text A</span>
@@ -420,15 +435,35 @@
 			{/if}
 		</div>
 	</aside>
+	</section>
+
+	<section class="bottom">
+		<InspectorRow
+			result={selectedResult}
+			modelShortName={playground.model.shortName}
+			title={selectedId ? `Slot ${selectedId}` : 'Selected'}
+			emptyText="Click any labeled point in the cloud to see its embedding broken apart."
+		/>
+	</section>
 </main>
 
 <style>
 	.lab {
+		display: grid;
+		grid-template-rows: 1fr 220px;
+		gap: 10px;
+		min-height: 0;
+		height: 100%;
+	}
+	.top {
 		position: relative;
 		display: flex;
 		gap: 10px;
 		min-height: 0;
-		height: 100%;
+	}
+	.bottom {
+		min-height: 0;
+		min-width: 0;
 	}
 	.cloud-fill {
 		position: absolute;
