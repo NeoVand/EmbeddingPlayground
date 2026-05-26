@@ -11,6 +11,8 @@
 
 	import { playground } from '$lib/stores/playground.svelte.js';
 	import SemanticCloud, { type CloudPoint } from '$lib/viz/SemanticCloud.svelte';
+	import InspectorRow from '$lib/components/InspectorRow.svelte';
+	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { kmeans, silhouette } from '$lib/math/kmeans.js';
 	import { createLabState } from './labState.svelte.js';
 	import {
@@ -28,9 +30,28 @@
 		uploadError: '' as string
 	});
 
-	let embeddings = $state(new Map<string, Float32Array>());
+	let results = $state(new Map<string, EmbeddingResult>());
+	const embeddings = $derived.by<Map<string, Float32Array>>(() => {
+		const m = new Map<string, Float32Array>();
+		for (const [id, r] of results) m.set(id, r.vector);
+		return m;
+	});
 	let loadingCount = $state(0);
 	let loadingTotal = $state(0);
+	let selectedSentenceId = $state<string | null>(null);
+
+	const selectedResult = $derived.by<EmbeddingResult | null>(() => {
+		if (selectedSentenceId && results.has(selectedSentenceId)) {
+			return results.get(selectedSentenceId) ?? null;
+		}
+		return null;
+	});
+
+	function selectPoint(id: string) {
+		// Ignore centroid clicks — they're synthetic points without source embeddings.
+		if (id.startsWith('centroid_')) return;
+		selectedSentenceId = id;
+	}
 
 	const dataset = $derived(getClusterDataset(lab.datasetId));
 	const groundTruthAvailable = $derived(lab.sentences.every((s) => s.topic));
@@ -50,7 +71,7 @@
 		const mySeq = ++exSeq;
 		loadingTotal = lab.sentences.length;
 		loadingCount = 0;
-		const map = new Map<string, Float32Array>();
+		const map = new Map<string, EmbeddingResult>();
 		try {
 			for (let i = 0; i < lab.sentences.length; i++) {
 				if (mySeq !== exSeq) return;
@@ -58,13 +79,13 @@
 				if (!s.text.trim()) continue;
 				const r = await playground.embedText(s.text);
 				if (mySeq !== exSeq) return;
-				map.set(s.id, r.vector);
+				map.set(s.id, r);
 				loadingCount = i + 1;
 				if (i % 4 === 0 || i === lab.sentences.length - 1) {
-					embeddings = new Map(map);
+					results = new Map(map);
 				}
 			}
-			embeddings = map;
+			results = map;
 		} finally {
 			if (mySeq === exSeq) loadingTotal = 0;
 		}
@@ -215,9 +236,15 @@
 </script>
 
 <main class="lab">
-	<div class="cloud-fill">
-		<SemanticCloud {points} mode="pca" />
-	</div>
+	<section class="top">
+		<div class="cloud-fill">
+			<SemanticCloud
+				{points}
+				mode="pca"
+				selectedId={selectedSentenceId}
+				onPointClick={selectPoint}
+			/>
+		</div>
 
 	<aside class="left">
 		<div class="card glass">
@@ -342,15 +369,35 @@
 			{/if}
 		</div>
 	</aside>
+	</section>
+
+	<section class="bottom">
+		<InspectorRow
+			result={selectedResult}
+			modelShortName={playground.model.shortName}
+			title={selectedSentenceId ? 'Sentence' : 'Selected'}
+			emptyText="Click any sentence dot to inspect its embedding."
+		/>
+	</section>
 </main>
 
 <style>
 	.lab {
+		display: grid;
+		grid-template-rows: 1fr 220px;
+		gap: 10px;
+		min-height: 0;
+		height: 100%;
+	}
+	.top {
 		position: relative;
 		display: flex;
 		gap: 10px;
 		min-height: 0;
-		height: 100%;
+	}
+	.bottom {
+		min-height: 0;
+		min-width: 0;
 	}
 	.cloud-fill {
 		position: absolute;

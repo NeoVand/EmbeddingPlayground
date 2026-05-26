@@ -10,6 +10,7 @@
 
 	import { playground } from '$lib/stores/playground.svelte.js';
 	import SemanticCloud, { type CloudPoint, type CloudLink } from '$lib/viz/SemanticCloud.svelte';
+	import InspectorRow from '$lib/components/InspectorRow.svelte';
 	import { cosine, euclidean } from '$lib/math/similarity.js';
 	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { createLabState } from './labState.svelte.js';
@@ -54,12 +55,30 @@
 	);
 
 	// ---------- embedding ----------
-	let chunkEmbeddings = $state(new Map<string, Float32Array>());
+	let chunkResults = $state(new Map<string, EmbeddingResult>());
+	let chunkEmbeddings = $derived.by<Map<string, Float32Array>>(() => {
+		const m = new Map<string, Float32Array>();
+		for (const [id, r] of chunkResults) m.set(id, r.vector);
+		return m;
+	});
 	let chunksEmbedded = $state(0);
 	let totalChunks = $state(0);
 	let embeddingChunks = $state(false);
 	let queryResult = $state<EmbeddingResult | null>(null);
 	let queryEmbedding = $state(false);
+	let selectedChunkId = $state<string | null>(null);
+
+	const selectedResult = $derived.by<EmbeddingResult | null>(() => {
+		if (selectedChunkId === 'query') return queryResult;
+		if (selectedChunkId && chunkResults.has(selectedChunkId)) {
+			return chunkResults.get(selectedChunkId) ?? null;
+		}
+		return null;
+	});
+
+	function selectPoint(id: string) {
+		selectedChunkId = id;
+	}
 
 	let chunkSeq = 0;
 	async function embedChunks() {
@@ -69,7 +88,7 @@
 		totalChunks = ch.length;
 		chunksEmbedded = 0;
 		embeddingChunks = true;
-		const map = new Map<string, Float32Array>();
+		const map = new Map<string, EmbeddingResult>();
 		try {
 			for (let i = 0; i < ch.length; i++) {
 				if (mySeq !== chunkSeq) return;
@@ -77,14 +96,13 @@
 				if (!c.text.trim()) continue;
 				const r = await playground.embedText(c.text);
 				if (mySeq !== chunkSeq) return;
-				map.set(c.id, r.vector);
+				map.set(c.id, r);
 				chunksEmbedded = i + 1;
-				// Update state progressively so the cloud fills in.
 				if (i % 3 === 0 || i === ch.length - 1) {
-					chunkEmbeddings = new Map(map);
+					chunkResults = new Map(map);
 				}
 			}
-			chunkEmbeddings = map;
+			chunkResults = map;
 		} finally {
 			if (mySeq === chunkSeq) embeddingChunks = false;
 		}
@@ -225,9 +243,16 @@
 </script>
 
 <main class="lab">
-	<div class="cloud-fill">
-		<SemanticCloud {points} {links} mode="pca" selectedId={queryResult ? 'query' : null} />
-	</div>
+	<section class="top">
+		<div class="cloud-fill">
+			<SemanticCloud
+				{points}
+				{links}
+				mode="pca"
+				selectedId={selectedChunkId ?? (queryResult ? 'query' : null)}
+				onPointClick={selectPoint}
+			/>
+		</div>
 	<aside class="left">
 		<div class="card glass">
 			<div class="head">
@@ -396,15 +421,39 @@
 			{/if}
 		</div>
 	</aside>
+	</section>
+
+	<section class="bottom">
+		<InspectorRow
+			result={selectedResult}
+			modelShortName={playground.model.shortName}
+			title={selectedChunkId === 'query'
+				? 'Query'
+				: selectedChunkId
+					? `Chunk ${selectedChunkId}`
+					: 'Selected'}
+			emptyText="Click any chunk or the QUERY ring to inspect its embedding."
+		/>
+	</section>
 </main>
 
 <style>
 	.lab {
+		display: grid;
+		grid-template-rows: 1fr 220px;
+		gap: 10px;
+		min-height: 0;
+		height: 100%;
+	}
+	.top {
 		position: relative;
 		display: flex;
 		gap: 10px;
 		min-height: 0;
-		height: 100%;
+	}
+	.bottom {
+		min-height: 0;
+		min-width: 0;
 	}
 	.cloud-fill {
 		position: absolute;

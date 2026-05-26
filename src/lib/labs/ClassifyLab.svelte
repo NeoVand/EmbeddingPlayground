@@ -15,9 +15,11 @@
 
 	import { playground } from '$lib/stores/playground.svelte.js';
 	import SemanticCloud, { type CloudPoint, type CloudLink } from '$lib/viz/SemanticCloud.svelte';
+	import InspectorRow from '$lib/components/InspectorRow.svelte';
 	import { cosine } from '$lib/math/similarity.js';
 	import { columnMeans, l2NormalizeInPlace } from '$lib/math/stats.js';
 	import { createLabState } from './labState.svelte.js';
+	import type { EmbeddingResult } from '$lib/models/types.js';
 	import {
 		CLASSIFY_DATASETS,
 		getDataset,
@@ -32,11 +34,30 @@
 		uploadError: '' as string
 	});
 
-	let exampleEmbeddings = $state(new Map<string, Float32Array>());
-	let queryVector = $state<Float32Array | null>(null);
+	let exampleResults = $state(new Map<string, EmbeddingResult>());
+	const exampleEmbeddings = $derived.by<Map<string, Float32Array>>(() => {
+		const m = new Map<string, Float32Array>();
+		for (const [id, r] of exampleResults) m.set(id, r.vector);
+		return m;
+	});
+	let queryResult = $state<EmbeddingResult | null>(null);
+	let queryVector = $derived(queryResult?.vector ?? null);
 	let loadingCount = $state(0);
 	let loadingTotal = $state(0);
 	let embeddingQuery = $state(false);
+	let selectedExampleId = $state<string | null>(null);
+
+	const selectedResult = $derived.by<EmbeddingResult | null>(() => {
+		if (selectedExampleId === 'query') return queryResult;
+		if (selectedExampleId && exampleResults.has(selectedExampleId)) {
+			return exampleResults.get(selectedExampleId) ?? null;
+		}
+		return null;
+	});
+
+	function selectPoint(id: string) {
+		selectedExampleId = id;
+	}
 
 	// ---------- dataset switching ----------
 	const dataset = $derived.by<ReturnType<typeof getDataset>>(() => getDataset(lab.datasetId));
@@ -55,7 +76,7 @@
 		const mySeq = ++exSeq;
 		loadingTotal = lab.examples.length;
 		loadingCount = 0;
-		const map = new Map<string, Float32Array>();
+		const map = new Map<string, EmbeddingResult>();
 		try {
 			for (let i = 0; i < lab.examples.length; i++) {
 				if (mySeq !== exSeq) return;
@@ -63,14 +84,13 @@
 				if (!ex.text.trim()) continue;
 				const r = await playground.embedText(ex.text);
 				if (mySeq !== exSeq) return;
-				map.set(ex.id, r.vector);
+				map.set(ex.id, r);
 				loadingCount = i + 1;
-				// Progressive update so the cloud builds up
 				if (i % 3 === 0 || i === lab.examples.length - 1) {
-					exampleEmbeddings = new Map(map);
+					exampleResults = new Map(map);
 				}
 			}
-			exampleEmbeddings = map;
+			exampleResults = map;
 		} finally {
 			if (mySeq === exSeq) loadingTotal = 0;
 		}
@@ -80,14 +100,14 @@
 	async function embedQuery() {
 		const q = lab.query.trim();
 		if (!q) {
-			queryVector = null;
+			queryResult = null;
 			return;
 		}
 		const s = ++querySeq;
 		embeddingQuery = true;
 		try {
 			const r = await playground.embedText(q);
-			if (s === querySeq) queryVector = r.vector;
+			if (s === querySeq) queryResult = r;
 		} finally {
 			if (s === querySeq) embeddingQuery = false;
 		}
@@ -273,9 +293,16 @@
 </script>
 
 <main class="lab">
-	<div class="cloud-fill">
-		<SemanticCloud {points} {links} mode="pca" selectedId={queryVector ? 'query' : null} />
-	</div>
+	<section class="top">
+		<div class="cloud-fill">
+			<SemanticCloud
+				{points}
+				{links}
+				mode="pca"
+				selectedId={selectedExampleId ?? (queryVector ? 'query' : null)}
+				onPointClick={selectPoint}
+			/>
+		</div>
 
 	<aside class="left">
 		<div class="card glass">
@@ -388,15 +415,35 @@
 			{/if}
 		</div>
 	</aside>
+	</section>
+
+	<section class="bottom">
+		<InspectorRow
+			result={selectedResult}
+			modelShortName={playground.model.shortName}
+			title={selectedExampleId === 'query' ? 'Query' : selectedExampleId ? 'Example' : 'Selected'}
+			emptyText="Click any training example or the QUERY ring to inspect its embedding."
+		/>
+	</section>
 </main>
 
 <style>
 	.lab {
+		display: grid;
+		grid-template-rows: 1fr 220px;
+		gap: 10px;
+		min-height: 0;
+		height: 100%;
+	}
+	.top {
 		position: relative;
 		display: flex;
 		gap: 10px;
 		min-height: 0;
-		height: 100%;
+	}
+	.bottom {
+		min-height: 0;
+		min-width: 0;
 	}
 	.cloud-fill {
 		position: absolute;
