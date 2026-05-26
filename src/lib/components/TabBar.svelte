@@ -5,8 +5,8 @@
 		{ id: 'compare', label: 'Compare', desc: 'Pair similarity' },
 		{ id: 'trajectory', label: 'Trajectory', desc: 'Sentence path' },
 		{ id: 'rag', label: 'RAG', desc: 'Semantic search' },
-		{ id: 'analogies', label: 'Analogies', desc: 'A − B + C → R' },
-		{ id: 'plane', label: 'Plane', desc: 'Interpretable axis' }
+		{ id: 'classify', label: 'Classify', desc: 'Nearest-prototype' },
+		{ id: 'cluster', label: 'Cluster', desc: 'K-means in vector space' }
 	];
 
 	function pick(id: LabId) {
@@ -54,7 +54,7 @@
 		gap: 1px;
 		line-height: 1.1;
 		transition: background 0.15s ease;
-		min-width: 88px;
+		min-width: 92px;
 	}
 	.tab:hover {
 		background: var(--surface-1);

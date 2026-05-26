@@ -23,7 +23,7 @@ import { getVectorCache } from '$lib/models/vector-cache.js';
 
 const STATE_KEY = 'embedding-playground:shell:v1';
 
-export type LabId = 'compare' | 'trajectory' | 'rag' | 'analogies' | 'plane';
+export type LabId = 'compare' | 'trajectory' | 'rag' | 'classify' | 'cluster';
 
 export interface CorpusEmbedding {
 	item: CorpusItem;

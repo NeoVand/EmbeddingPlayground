@@ -7,8 +7,8 @@
 	import CompareLab from '$lib/labs/CompareLab.svelte';
 	import TrajectoryLab from '$lib/labs/TrajectoryLab.svelte';
 	import RAGLab from '$lib/labs/RAGLab.svelte';
-	import AnalogiesLab from '$lib/labs/AnalogiesLab.svelte';
-	import PlaneLab from '$lib/labs/PlaneLab.svelte';
+	import ClassifyLab from '$lib/labs/ClassifyLab.svelte';
+	import ClusterLab from '$lib/labs/ClusterLab.svelte';
 	import { startTour } from '$lib/tour.js';
 
 	onMount(async () => {
@@ -51,10 +51,10 @@
 			<TrajectoryLab />
 		{:else if playground.lab === 'rag'}
 			<RAGLab />
-		{:else if playground.lab === 'analogies'}
-			<AnalogiesLab />
-		{:else if playground.lab === 'plane'}
-			<PlaneLab />
+		{:else if playground.lab === 'classify'}
+			<ClassifyLab />
+		{:else if playground.lab === 'cluster'}
+			<ClusterLab />
 		{/if}
 	</div>
 </div>

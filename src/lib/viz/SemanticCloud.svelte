@@ -497,17 +497,23 @@
 				});
 				obj = new THREE.Mesh(new THREE.SphereGeometry(baseSize, 32, 32), mat);
 
-				// halo (selection glow), hidden by default
-				const haloMat = new THREE.MeshBasicMaterial({
+				// Selection ring: a thin Sprite that always faces the camera —
+				// no halo sphere that rotates with the scene. Toggled visible
+				// by updateSelectionStyling().
+				const ringMat = new THREE.SpriteMaterial({
+					map: getRingTexture(),
 					color: new THREE.Color(r, g, b),
 					transparent: true,
-					opacity: 0.16,
+					opacity: 0.9,
+					depthTest: false,
 					depthWrite: false
 				});
-				const halo = new THREE.Mesh(new THREE.SphereGeometry(baseSize * 2, 24, 24), haloMat);
-				halo.visible = false;
-				halo.userData = { halo: true };
-				obj.add(halo);
+				const ring = new THREE.Sprite(ringMat);
+				const ringSize = baseSize * 4.2;
+				ring.scale.set(ringSize, ringSize, 1);
+				ring.visible = false;
+				ring.userData = { halo: true };
+				obj.add(ring);
 			}
 
 			obj.userData = { pointId: p.id };
@@ -554,14 +560,16 @@
 		geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 		geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
+		// Bigger dots — the previous 0.04 read as "dust" against the lit
+		// slot spheres. 0.075 is roughly as visible as a slot at 1× scale.
 		const mat = new THREE.PointsMaterial({
-			size: 0.04,
+			size: 0.075,
 			sizeAttenuation: true,
 			vertexColors: true,
 			transparent: true,
 			depthWrite: false,
 			alphaTest: 0.05,
-			opacity: 0.7,
+			opacity: 0.82,
 			map: makeDiscTexture()
 		});
 		dotPoints = new THREE.Points(geo, mat);
@@ -661,17 +669,17 @@
 	function updateSelectionStyling() {
 		for (const [id, obj] of pointMeshes) {
 			const isSel = id === selectedId;
-			let halo: THREE.Mesh | undefined;
+			let ring: THREE.Sprite | undefined;
 			let labelEl: HTMLElement | undefined;
 			for (const c of obj.children) {
-				if ((c.userData as { halo?: boolean }).halo) halo = c as THREE.Mesh;
+				if ((c.userData as { halo?: boolean }).halo) ring = c as THREE.Sprite;
 				if (c instanceof CSS2DObject) labelEl = c.element as HTMLElement;
 			}
-			if (halo) {
-				halo.visible = isSel;
-				(halo.material as THREE.MeshBasicMaterial).opacity = isSel ? 0.28 : 0;
+			if (ring) {
+				ring.visible = isSel;
+				(ring.material as THREE.SpriteMaterial).opacity = isSel ? 0.9 : 0;
 			}
-			obj.scale.setScalar(isSel ? 1.2 : 1);
+			obj.scale.setScalar(isSel ? 1.18 : 1);
 			if (labelEl) labelEl.classList.toggle('is-selected', isSel);
 		}
 	}
@@ -705,6 +713,35 @@
 	$effect(() => {
 		void theme.tokens;
 	});
+
+	// Cached ring texture for selection sprites — thin stroke, soft edge.
+	let _ringTex: THREE.Texture | null = null;
+	function getRingTexture(): THREE.Texture {
+		if (_ringTex) return _ringTex;
+		const size = 128;
+		const c = document.createElement('canvas');
+		c.width = c.height = size;
+		const ctx = c.getContext('2d')!;
+		ctx.clearRect(0, 0, size, size);
+		const cx = size / 2;
+		const cy = size / 2;
+		// Outer ring with a soft anti-aliased edge.
+		ctx.strokeStyle = 'rgba(255,255,255,1)';
+		ctx.lineWidth = 5;
+		ctx.beginPath();
+		ctx.arc(cx, cy, size * 0.42, 0, Math.PI * 2);
+		ctx.stroke();
+		// Inner faint glow ring for some depth.
+		ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+		ctx.lineWidth = 14;
+		ctx.beginPath();
+		ctx.arc(cx, cy, size * 0.42, 0, Math.PI * 2);
+		ctx.stroke();
+		const tex = new THREE.CanvasTexture(c);
+		tex.needsUpdate = true;
+		_ringTex = tex;
+		return tex;
+	}
 
 	function makeDiscTexture(): THREE.Texture {
 		const size = 64;
