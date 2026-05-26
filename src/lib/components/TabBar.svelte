@@ -2,9 +2,9 @@
 	import { playground, type LabId } from '$lib/stores/playground.svelte.js';
 
 	const labs: { id: LabId; label: string; desc: string }[] = [
-		{ id: 'explore', label: 'Explore', desc: 'What is an embedding?' },
 		{ id: 'compare', label: 'Compare', desc: 'Pair similarity' },
 		{ id: 'trajectory', label: 'Trajectory', desc: 'Sentence path' },
+		{ id: 'rag', label: 'RAG', desc: 'Semantic search' },
 		{ id: 'analogies', label: 'Analogies', desc: 'A − B + C → R' },
 		{ id: 'plane', label: 'Plane', desc: 'Interpretable axis' }
 	];

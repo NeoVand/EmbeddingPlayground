@@ -4,9 +4,9 @@
 	import ModelSelector from '$lib/components/ModelSelector.svelte';
 	import BackendBadge from '$lib/components/BackendBadge.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
-	import ExploreLab from '$lib/labs/ExploreLab.svelte';
 	import CompareLab from '$lib/labs/CompareLab.svelte';
 	import TrajectoryLab from '$lib/labs/TrajectoryLab.svelte';
+	import RAGLab from '$lib/labs/RAGLab.svelte';
 	import AnalogiesLab from '$lib/labs/AnalogiesLab.svelte';
 	import PlaneLab from '$lib/labs/PlaneLab.svelte';
 	import { startTour } from '$lib/tour.js';
@@ -43,12 +43,12 @@
 	</header>
 
 	<div class="lab-host" data-tour="cloud">
-		{#if playground.lab === 'explore'}
-			<ExploreLab />
-		{:else if playground.lab === 'compare'}
+		{#if playground.lab === 'compare'}
 			<CompareLab />
 		{:else if playground.lab === 'trajectory'}
 			<TrajectoryLab />
+		{:else if playground.lab === 'rag'}
+			<RAGLab />
 		{:else if playground.lab === 'analogies'}
 			<AnalogiesLab />
 		{:else if playground.lab === 'plane'}

@@ -23,7 +23,7 @@ import { getVectorCache } from '$lib/models/vector-cache.js';
 
 const STATE_KEY = 'embedding-playground:shell:v1';
 
-export type LabId = 'explore' | 'compare' | 'trajectory' | 'analogies' | 'plane';
+export type LabId = 'compare' | 'trajectory' | 'rag' | 'analogies' | 'plane';
 
 export interface CorpusEmbedding {
 	item: CorpusItem;
@@ -41,7 +41,7 @@ function defaultPersisted(): PersistedState {
 	return {
 		modelId: DEFAULT_MODEL_ID,
 		preference: 'auto',
-		lab: 'explore',
+		lab: 'compare',
 		tourSeen: false
 	};
 }
