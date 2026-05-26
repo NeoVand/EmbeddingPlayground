@@ -4,6 +4,7 @@
 	import ModelSelector from '$lib/components/ModelSelector.svelte';
 	import BackendBadge from '$lib/components/BackendBadge.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
+	import ProgressBar from '$lib/components/ProgressBar.svelte';
 	import CompareLab from '$lib/labs/CompareLab.svelte';
 	import TrajectoryLab from '$lib/labs/TrajectoryLab.svelte';
 	import RAGLab from '$lib/labs/RAGLab.svelte';
@@ -44,6 +45,8 @@
 		</div>
 	</header>
 
+	<ProgressBar />
+
 	<div class="lab-host" data-tour="cloud">
 		{#if playground.lab === 'compare'}
 			<CompareLab />
@@ -64,8 +67,8 @@
 		position: fixed;
 		inset: 0;
 		display: grid;
-		grid-template-rows: auto 1fr;
-		gap: 10px;
+		grid-template-rows: auto auto 1fr;
+		gap: 8px;
 		padding: 12px;
 		box-sizing: border-box;
 	}

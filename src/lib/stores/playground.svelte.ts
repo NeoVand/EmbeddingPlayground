@@ -81,6 +81,13 @@ function createPlayground() {
 	let corpusProgress = $state(0);
 	let corpusCache = $state<{ modelId: string; backend: Backend; items: CorpusEmbedding[] } | null>(null);
 
+	// Aggregate "what is the app currently doing?" counters. Every embedText
+	// call increments embedQueueDepth on entry and decrements on exit so the
+	// page shell can render a global progress indicator without each lab
+	// reporting its own state.
+	let embedQueueDepth = $state(0);
+	let embedTotalThisSession = $state(0);
+
 	const model = $derived<ModelInfo>(getModel(modelId));
 	const corpusReady = $derived(
 		corpusCache != null && corpusCache.modelId === modelId && corpusCache.backend === selection?.backend
@@ -128,26 +135,32 @@ function createPlayground() {
 		const t = text.trim();
 		if (!t) throw new Error('Empty text');
 
-		const e = await ensureEmbedder();
-		const backend = e.backend;
+		embedQueueDepth++;
+		embedTotalThisSession++;
+		try {
+			const e = await ensureEmbedder();
+			const backend = e.backend;
 
-		if (!opts.force) {
-			const cached = cache.get(modelId, backend, t);
-			if (cached) {
-				return {
-					vector: cached,
-					dim: cached.length,
-					backend,
-					model: e.model,
-					text: t,
-					elapsedMs: 0
-				} satisfies EmbeddingResult;
+			if (!opts.force) {
+				const cached = cache.get(modelId, backend, t);
+				if (cached) {
+					return {
+						vector: cached,
+						dim: cached.length,
+						backend,
+						model: e.model,
+						text: t,
+						elapsedMs: 0
+					} satisfies EmbeddingResult;
+				}
 			}
-		}
 
-		const r = await e.embed(t);
-		cache.set(modelId, backend, t, r.vector);
-		return r;
+			const r = await e.embed(t);
+			cache.set(modelId, backend, t, r.vector);
+			return r;
+		} finally {
+			embedQueueDepth--;
+		}
 	}
 
 	async function buildCorpus(): Promise<void> {
@@ -282,6 +295,21 @@ function createPlayground() {
 		},
 		get corpusProgress() {
 			return corpusProgress;
+		},
+
+		// Aggregate processing state for the global progress indicator.
+		get embedQueueDepth() {
+			return embedQueueDepth;
+		},
+		get embedTotalThisSession() {
+			return embedTotalThisSession;
+		},
+		get isBusy() {
+			return (
+				embedQueueDepth > 0 ||
+				corpusBuilding ||
+				modelLoad?.status === 'loading'
+			);
 		},
 
 		// actions

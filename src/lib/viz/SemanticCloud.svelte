@@ -560,16 +560,18 @@
 		geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 		geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-		// Bigger dots — the previous 0.04 read as "dust" against the lit
-		// slot spheres. 0.075 is roughly as visible as a slot at 1× scale.
+		// Bigger dots so they actually read as embeddings instead of dust
+		// — PointsMaterial units are different from Mesh units and at typical
+		// camera distance, 0.075 was still 4-6 px. 0.13 gives them real weight
+		// against the lit slot spheres while staying clearly subordinate.
 		const mat = new THREE.PointsMaterial({
-			size: 0.075,
+			size: 0.13,
 			sizeAttenuation: true,
 			vertexColors: true,
 			transparent: true,
 			depthWrite: false,
 			alphaTest: 0.05,
-			opacity: 0.82,
+			opacity: 0.88,
 			map: makeDiscTexture()
 		});
 		dotPoints = new THREE.Points(geo, mat);
