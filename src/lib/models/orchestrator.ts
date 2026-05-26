@@ -36,7 +36,17 @@ export async function chooseEmbedder(
 		// Prefer WebGPU when available — large models (Qwen3) blow the WASM heap.
 		// The short-input buffer bug from earlier transformers.js versions has
 		// been verified to no longer reproduce on v3.8+ (re-checked 2026-05-26).
-		const device = avail.webgpu ? 'webgpu' : 'wasm';
+		// Per-model `preferredDevice` overrides this for architectures whose ops
+		// don't yet work on WebGPU (ModernBERT and Gemma both fail on the rotary
+		// embedding multiply kernel; they need WASM).
+		let device: 'webgpu' | 'wasm';
+		if (model.preferredDevice === 'wasm') {
+			device = 'wasm';
+		} else if (model.preferredDevice === 'webgpu' && avail.webgpu) {
+			device = 'webgpu';
+		} else {
+			device = avail.webgpu ? 'webgpu' : 'wasm';
+		}
 		return {
 			embedder: new TransformersEmbedder(model, { device }),
 			backend: 'transformers',

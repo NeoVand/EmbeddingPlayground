@@ -41,6 +41,21 @@ export interface ModelInfo {
 	approxDownloadMB: number;
 	/** Pooling strategy used to produce the sentence vector from token vectors. */
 	pooling: 'mean' | 'cls' | 'last_token';
+	/**
+	 * Which transformers.js loader path to use.
+	 *   'pipeline' — standard `pipeline('feature-extraction', repo)`; we pool ourselves.
+	 *   'sentence-embedding-head' — needs `AutoModel.from_pretrained()` and reads
+	 *     the `sentence_embedding` output key (Gemma uses this — its dense
+	 *     projection heads aren't applied by the feature-extraction pipeline).
+	 */
+	loaderKind?: 'pipeline' | 'sentence-embedding-head';
+	/**
+	 * Some architectures (ModernBERT, Gemma) have ops that don't yet run on
+	 * WebGPU in transformers.js — rotary-embedding multiplies fail. When set
+	 * to 'wasm', the orchestrator forces the WASM device even if WebGPU is
+	 * available. WASM is slower but reliable for these models.
+	 */
+	preferredDevice?: 'webgpu' | 'wasm';
 	/** Whether the model expects L2-normalized output (most modern ones do). */
 	normalize: boolean;
 	/** Matryoshka-supported dimensions, descending. UI can offer truncation. */

@@ -7,7 +7,13 @@
  * This is what makes the token-heatmap viz possible.
  */
 
-import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
+import {
+	pipeline,
+	env,
+	AutoTokenizer,
+	AutoModel,
+	type FeatureExtractionPipeline
+} from '@huggingface/transformers';
 import { l2NormalizeInPlace } from '../math/stats.ts';
 import type { Embedder, EmbeddingResult, LoadProgress, ModelInfo, Token } from './types.ts';
 
@@ -17,6 +23,13 @@ env.allowLocalModels = false;
 export class TransformersEmbedder implements Embedder {
 	readonly backend = 'transformers' as const;
 	private extractor: FeatureExtractionPipeline | null = null;
+	// AutoModel + tokenizer path — for models with a `sentence_embedding`
+	// output head that the standard feature-extraction pipeline doesn't apply
+	// (Gemma, future Granite r2 with dense projections, etc).
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	private autoModel: any = null;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	private tokenizer: any = null;
 	private loadPromise: Promise<void> | null = null;
 	private device: 'webgpu' | 'wasm';
 	// ONNX Runtime reuses output tensor buffers across inferences. Running two
@@ -50,8 +63,6 @@ export class TransformersEmbedder implements Embedder {
 		onProgress?.({ ...baseProgress, status: 'loading', message: `Resolving ${hf.repo}…` });
 
 		try {
-			// `pipeline()` has many overloads; flattening into a plain options
-			// object + a cast keeps the TS resolver from blowing up.
 			const options = {
 				device: this.device,
 				dtype: hf.dtype ?? 'q8',
@@ -59,11 +70,22 @@ export class TransformersEmbedder implements Embedder {
 					forwardProgress(data, this.model.id, this.backend, onProgress);
 				}
 			};
-			// The pipeline() return type is a union of every pipeline class —
-			// too complex for TS to represent at the call site. Cast through unknown.
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const callable = pipeline as unknown as (task: string, model: string, opts: unknown) => Promise<unknown>;
-			this.extractor = (await callable('feature-extraction', hf.repo, options)) as FeatureExtractionPipeline;
+
+			if (this.model.loaderKind === 'sentence-embedding-head') {
+				// AutoModel path — for models like EmbeddingGemma whose dense
+				// projection heads the pipeline doesn't apply.
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const ATokenizer = AutoTokenizer as unknown as { from_pretrained: (repo: string, opts: unknown) => Promise<any> };
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const AModel = AutoModel as unknown as { from_pretrained: (repo: string, opts: unknown) => Promise<any> };
+				this.tokenizer = await ATokenizer.from_pretrained(hf.repo, options);
+				this.autoModel = await AModel.from_pretrained(hf.repo, options);
+			} else {
+				// Standard feature-extraction pipeline.
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const callable = pipeline as unknown as (task: string, model: string, opts: unknown) => Promise<unknown>;
+				this.extractor = (await callable('feature-extraction', hf.repo, options)) as FeatureExtractionPipeline;
+			}
 
 			onProgress?.({
 				...baseProgress,
@@ -88,12 +110,37 @@ export class TransformersEmbedder implements Embedder {
 	}
 
 	private async embedInternal(text: string): Promise<EmbeddingResult> {
-		if (!this.extractor) throw new Error('Model not loaded — call load() first.');
 		const t0 = performance.now();
-
-		// Apply the model's "document" prefix (slots are treated as documents).
 		const prefixTemplate = this.model.prefixes?.document ?? this.model.prefixes?.query;
 		const input = prefixTemplate ? prefixTemplate.replace('{text}', text) : text;
+
+		// AutoModel path: the model already returns the pooled sentence vector
+		// via its `sentence_embedding` head. No token vectors, no manual pooling.
+		if (this.model.loaderKind === 'sentence-embedding-head') {
+			if (!this.autoModel || !this.tokenizer) {
+				throw new Error('Model not loaded — call load() first.');
+			}
+			const tokens = await this.tokenizer(input);
+			const output = await this.autoModel(tokens);
+			const sentTensor = output.sentence_embedding ?? output.last_hidden_state;
+			if (!sentTensor) {
+				throw new Error('Model output had no sentence_embedding key.');
+			}
+			// Defensive copy off any shared ONNX output buffer.
+			const data = new Float32Array(sentTensor.data as Float32Array);
+			const dim = data.length;
+			if (this.model.normalize) l2NormalizeInPlace(data);
+			return {
+				vector: data,
+				dim,
+				backend: this.backend,
+				model: this.model,
+				text,
+				elapsedMs: performance.now() - t0
+			};
+		}
+
+		if (!this.extractor) throw new Error('Model not loaded — call load() first.');
 
 		// Run with no built-in pooling. We pool ourselves so we keep per-token
 		// vectors for sentence transformers; static models output already-pooled
@@ -159,6 +206,11 @@ export class TransformersEmbedder implements Embedder {
 			await this.extractor.dispose?.();
 			this.extractor = null;
 		}
+		if (this.autoModel) {
+			await this.autoModel.dispose?.();
+			this.autoModel = null;
+		}
+		this.tokenizer = null;
 		this.loadPromise = null;
 	}
 }
