@@ -146,56 +146,116 @@ textarea {
 
 /* Driver.js theme — match our glass surfaces. */
 .driver-popover.driverjs-theme {
-	background: var(--surface-2) !important;
+	background: oklch(0.13 0.012 200 / 0.92) !important;
 	border: 1px solid var(--border-strong) !important;
 	color: var(--text-primary) !important;
-	border-radius: 10px !important;
-	backdrop-filter: blur(20px) saturate(1.15);
+	border-radius: 12px !important;
+	backdrop-filter: blur(24px) saturate(1.2);
+	-webkit-backdrop-filter: blur(24px) saturate(1.2);
 	box-shadow:
 		0 0 0 1px var(--border-strong) inset,
-		0 16px 48px rgba(0, 0, 0, 0.6) !important;
+		0 24px 64px rgba(0, 0, 0, 0.65) !important;
 	max-width: 380px;
+	padding: 18px 20px !important;
 }
 .driverjs-theme .driver-popover-title {
 	color: var(--text-primary) !important;
 	font-weight: 700 !important;
-	font-size: 14px !important;
+	font-size: 15px !important;
 	letter-spacing: 0.01em;
+	margin-right: 28px !important;
+	padding-right: 0 !important;
 }
 .driverjs-theme .driver-popover-description {
 	color: var(--text-secondary) !important;
-	font-size: 12px !important;
-	line-height: 1.55 !important;
+	font-size: 12.5px !important;
+	line-height: 1.6 !important;
+	margin-top: 8px;
 }
 .driverjs-theme .driver-popover-description b {
 	color: var(--text-primary) !important;
 	font-weight: 600;
 }
+.driverjs-theme .driver-popover-footer {
+	margin-top: 14px !important;
+	display: flex !important;
+	justify-content: space-between !important;
+	align-items: center !important;
+	gap: 10px !important;
+}
 .driverjs-theme .driver-popover-progress-text {
 	color: var(--text-subtle) !important;
 	font-size: 10px !important;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.08em;
+}
+.driverjs-theme .driver-popover-navigation-btns {
+	display: flex !important;
+	gap: 6px !important;
 }
 .driverjs-theme .driver-popover-prev-btn,
 .driverjs-theme .driver-popover-next-btn {
 	background: var(--surface-1) !important;
 	color: var(--text-secondary) !important;
 	border: 1px solid var(--border) !important;
-	border-radius: 5px !important;
+	border-radius: 6px !important;
 	padding: 6px 14px !important;
 	text-shadow: none !important;
 	box-shadow: none !important;
 	font-size: 12px !important;
-	font-weight: 500 !important;
+	font-weight: 600 !important;
+	font-family: 'Inter', sans-serif !important;
+	transition: all 0.15s ease;
+}
+.driverjs-theme .driver-popover-prev-btn:hover {
+	border-color: var(--border-strong) !important;
+	color: var(--text-primary) !important;
 }
 .driverjs-theme .driver-popover-next-btn {
 	background: var(--accent-glow) !important;
 	color: var(--text-primary) !important;
 	border-color: var(--accent) !important;
 }
+.driverjs-theme .driver-popover-next-btn:hover {
+	background: oklch(0.78 0.18 200 / 0.45) !important;
+}
+.driverjs-theme .driver-popover-prev-btn[disabled],
+.driverjs-theme .driver-popover-next-btn[disabled] {
+	opacity: 0.35 !important;
+	pointer-events: none;
+}
+/* Close button: real X glyph, properly sized, properly positioned. */
 .driverjs-theme .driver-popover-close-btn {
+	position: absolute !important;
+	top: 12px !important;
+	right: 12px !important;
+	width: 24px !important;
+	height: 24px !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	border-radius: 5px !important;
+	border: 1px solid transparent !important;
+	background: transparent !important;
 	color: var(--text-subtle) !important;
+	font-size: 0 !important;
+	cursor: pointer !important;
+	transition: all 0.15s ease;
+	padding: 0 !important;
+}
+.driverjs-theme .driver-popover-close-btn::before {
+	content: '×';
+	font-family: 'Inter', sans-serif;
+	font-size: 18px;
+	line-height: 1;
+	font-weight: 300;
+}
+.driverjs-theme .driver-popover-close-btn:hover {
+	background: var(--surface-1) !important;
+	border-color: var(--border) !important;
+	color: var(--text-primary) !important;
 }
 .driverjs-theme .driver-popover-arrow-side-left.driver-popover-arrow,
 .driverjs-theme .driver-popover-arrow {
-	border-color: var(--surface-2) !important;
+	border-color: oklch(0.13 0.012 200 / 0.92) !important;
 }

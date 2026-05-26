@@ -14,7 +14,9 @@
 	onMount(async () => {
 		void playground.probeBackends();
 		await tick();
-		setTimeout(() => startTour(), 800);
+		// Don't auto-open the tour on first visit. Users start in Compare with a
+		// loaded preset; the lab descriptions on the tab bar are self-explanatory.
+		// The ? button opens the tour on demand.
 	});
 
 	function showHelp() {
