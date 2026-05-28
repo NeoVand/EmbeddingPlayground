@@ -34,6 +34,13 @@
 		size?: number;
 		variant?: CloudVariant;
 		group?: string;
+		/**
+		 * When true, this point shows a billboard ring at all times — even
+		 * when another point is the click-selected one. Useful for marking
+		 * the "active query" in RAG/Classify so the user never loses sight
+		 * of which point is the query vs which is the inspected hit.
+		 */
+		pinned?: boolean;
 	}
 	export interface CloudLink {
 		from: string;
@@ -481,6 +488,25 @@
 				);
 				group.add(torus);
 				group.add(core);
+
+				// Billboard selection sprite — same one we attach to sphere variants,
+				// so the QUERY in RAG/Classify can be highlighted just like any other
+				// click-selected node.
+				const ringMat = new THREE.SpriteMaterial({
+					map: getRingTexture(),
+					color: new THREE.Color(r, g, b),
+					transparent: true,
+					opacity: 0.9,
+					depthTest: false,
+					depthWrite: false
+				});
+				const selRing = new THREE.Sprite(ringMat);
+				const selRingSize = baseSize * 5;
+				selRing.scale.set(selRingSize, selRingSize, 1);
+				selRing.visible = false;
+				selRing.userData = { halo: true };
+				group.add(selRing);
+
 				obj = group;
 			} else {
 				// Phong (not Basic) so the sphere catches the directional light
@@ -516,7 +542,7 @@
 				obj.add(ring);
 			}
 
-			obj.userData = { pointId: p.id };
+			obj.userData = { pointId: p.id, pinned: !!p.pinned };
 
 			if (p.label) {
 				const el = document.createElement('div');
@@ -671,6 +697,8 @@
 	function updateSelectionStyling() {
 		for (const [id, obj] of pointMeshes) {
 			const isSel = id === selectedId;
+			const isPinned = !!(obj.userData as { pinned?: boolean }).pinned;
+			const showRing = isSel || isPinned;
 			let ring: THREE.Sprite | undefined;
 			let labelEl: HTMLElement | undefined;
 			for (const c of obj.children) {
@@ -678,8 +706,9 @@
 				if (c instanceof CSS2DObject) labelEl = c.element as HTMLElement;
 			}
 			if (ring) {
-				ring.visible = isSel;
-				(ring.material as THREE.SpriteMaterial).opacity = isSel ? 0.9 : 0;
+				ring.visible = showRing;
+				// Brighter when actively click-selected, softer when just pinned.
+				(ring.material as THREE.SpriteMaterial).opacity = isSel ? 0.95 : isPinned ? 0.7 : 0;
 			}
 			obj.scale.setScalar(isSel ? 1.18 : 1);
 			if (labelEl) labelEl.classList.toggle('is-selected', isSel);

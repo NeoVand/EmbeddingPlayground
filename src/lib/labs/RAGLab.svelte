@@ -199,7 +199,10 @@
 				label: 'QUERY',
 				hoverText: `query: "${lab.query}"`,
 				size: 1.2,
-				variant: 'ring'
+				variant: 'ring',
+				// Always visible billboard ring — the QUERY shouldn't lose its
+				// anchor when the user clicks a chunk to inspect it.
+				pinned: true
 			});
 		}
 		return out;

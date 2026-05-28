@@ -226,7 +226,8 @@
 				label: 'QUERY',
 				hoverText: `query: "${lab.query}"`,
 				size: 1.2,
-				variant: 'ring'
+				variant: 'ring',
+				pinned: true
 			});
 		}
 		return out;
