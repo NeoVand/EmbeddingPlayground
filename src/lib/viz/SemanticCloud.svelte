@@ -477,37 +477,21 @@
 
 			let obj: THREE.Object3D;
 			if (variant === 'ring') {
-				const group = new THREE.Group();
-				const torus = new THREE.Mesh(
-					new THREE.TorusGeometry(baseSize * 1.4, baseSize * 0.22, 12, 36),
-					new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), transparent: true, opacity: 0.85 })
-				);
-				const core = new THREE.Mesh(
-					new THREE.SphereGeometry(baseSize * 0.5, 20, 20),
-					new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), transparent: true, opacity: 0.7 })
-				);
-				group.add(torus);
-				group.add(core);
-
-				// Billboard selection sprite — same one we attach to sphere variants,
-				// so the QUERY in RAG/Classify can be highlighted just like any other
-				// click-selected node.
-				const ringMat = new THREE.SpriteMaterial({
-					map: getRingTexture(),
+				// The 'ring' variant is now just a sphere — the visual
+				// distinction comes from its `pinned` flag, which renders a
+				// crosshair-reticle billboard sprite instead of the plain
+				// ring sprite that selected non-pinned points get. One
+				// camera-facing marker per point, never two stacked.
+				const mat = new THREE.MeshPhongMaterial({
 					color: new THREE.Color(r, g, b),
+					emissive: new THREE.Color(r, g, b),
+					emissiveIntensity: 0.55,
+					specular: 0xffffff,
+					shininess: 60,
 					transparent: true,
-					opacity: 0.9,
-					depthTest: false,
-					depthWrite: false
+					opacity: 1
 				});
-				const selRing = new THREE.Sprite(ringMat);
-				const selRingSize = baseSize * 5;
-				selRing.scale.set(selRingSize, selRingSize, 1);
-				selRing.visible = false;
-				selRing.userData = { halo: true };
-				group.add(selRing);
-
-				obj = group;
+				obj = new THREE.Mesh(new THREE.SphereGeometry(baseSize, 32, 32), mat);
 			} else {
 				// Phong (not Basic) so the sphere catches the directional light
 				// and reads as a real 3D object. emissive keeps the chosen hue
@@ -522,25 +506,27 @@
 					opacity: 1
 				});
 				obj = new THREE.Mesh(new THREE.SphereGeometry(baseSize, 32, 32), mat);
-
-				// Selection ring: a thin Sprite that always faces the camera —
-				// no halo sphere that rotates with the scene. Toggled visible
-				// by updateSelectionStyling().
-				const ringMat = new THREE.SpriteMaterial({
-					map: getRingTexture(),
-					color: new THREE.Color(r, g, b),
-					transparent: true,
-					opacity: 0.9,
-					depthTest: false,
-					depthWrite: false
-				});
-				const ring = new THREE.Sprite(ringMat);
-				const ringSize = baseSize * 4.2;
-				ring.scale.set(ringSize, ringSize, 1);
-				ring.visible = false;
-				ring.userData = { halo: true };
-				obj.add(ring);
 			}
+
+			// Camera-facing marker sprite. Two designs:
+			//   • pinned points (e.g. QUERY) → crosshair reticle, always visible
+			//   • non-pinned points → plain ring, visible only when click-selected
+			// Both never appear simultaneously on the same point.
+			const markerTex = p.pinned ? getReticleTexture() : getRingTexture();
+			const markerMat = new THREE.SpriteMaterial({
+				map: markerTex,
+				color: new THREE.Color(r, g, b),
+				transparent: true,
+				opacity: p.pinned ? 0.85 : 0,
+				depthTest: false,
+				depthWrite: false
+			});
+			const marker = new THREE.Sprite(markerMat);
+			const markerScale = baseSize * (p.pinned ? 5.5 : 4.2);
+			marker.scale.set(markerScale, markerScale, 1);
+			marker.visible = !!p.pinned;
+			marker.userData = { halo: true };
+			obj.add(marker);
 
 			obj.userData = { pointId: p.id, pinned: !!p.pinned };
 
@@ -698,17 +684,22 @@
 		for (const [id, obj] of pointMeshes) {
 			const isSel = id === selectedId;
 			const isPinned = !!(obj.userData as { pinned?: boolean }).pinned;
-			const showRing = isSel || isPinned;
-			let ring: THREE.Sprite | undefined;
+			let marker: THREE.Sprite | undefined;
 			let labelEl: HTMLElement | undefined;
 			for (const c of obj.children) {
-				if ((c.userData as { halo?: boolean }).halo) ring = c as THREE.Sprite;
+				if ((c.userData as { halo?: boolean }).halo) marker = c as THREE.Sprite;
 				if (c instanceof CSS2DObject) labelEl = c.element as HTMLElement;
 			}
-			if (ring) {
-				ring.visible = showRing;
-				// Brighter when actively click-selected, softer when just pinned.
-				(ring.material as THREE.SpriteMaterial).opacity = isSel ? 0.95 : isPinned ? 0.7 : 0;
+			if (marker) {
+				if (isPinned) {
+					// Reticle stays on; brighter while it's also click-selected.
+					marker.visible = true;
+					(marker.material as THREE.SpriteMaterial).opacity = isSel ? 1 : 0.85;
+				} else {
+					// Plain ring, only when click-selected.
+					marker.visible = isSel;
+					(marker.material as THREE.SpriteMaterial).opacity = isSel ? 0.95 : 0;
+				}
 			}
 			obj.scale.setScalar(isSel ? 1.18 : 1);
 			if (labelEl) labelEl.classList.toggle('is-selected', isSel);
@@ -771,6 +762,48 @@
 		const tex = new THREE.CanvasTexture(c);
 		tex.needsUpdate = true;
 		_ringTex = tex;
+		return tex;
+	}
+
+	// Reticle texture for pinned points (QUERY in RAG / Classify).
+	// A target-scope look: ring with four crosshair ticks at N/E/S/W. Reads
+	// instantly as "this is the active focus", visually distinct from the
+	// plain ring used for transient click selections.
+	let _reticleTex: THREE.Texture | null = null;
+	function getReticleTexture(): THREE.Texture {
+		if (_reticleTex) return _reticleTex;
+		const size = 128;
+		const c = document.createElement('canvas');
+		c.width = c.height = size;
+		const ctx = c.getContext('2d')!;
+		ctx.clearRect(0, 0, size, size);
+		const cx = size / 2;
+		const cy = size / 2;
+		const r = size * 0.36;
+		// Main ring, slightly thicker than the plain ring so it reads as "the active one".
+		ctx.strokeStyle = 'rgba(255,255,255,1)';
+		ctx.lineWidth = 4;
+		ctx.beginPath();
+		ctx.arc(cx, cy, r, 0, Math.PI * 2);
+		ctx.stroke();
+		// Crosshair ticks — small gap between ring and tick so it doesn't read as a solid +.
+		ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+		ctx.lineWidth = 3;
+		const inner = r * 1.08;
+		const outer = r * 1.5;
+		ctx.beginPath();
+		ctx.moveTo(cx, cy - inner);
+		ctx.lineTo(cx, cy - outer);
+		ctx.moveTo(cx, cy + inner);
+		ctx.lineTo(cx, cy + outer);
+		ctx.moveTo(cx - inner, cy);
+		ctx.lineTo(cx - outer, cy);
+		ctx.moveTo(cx + inner, cy);
+		ctx.lineTo(cx + outer, cy);
+		ctx.stroke();
+		const tex = new THREE.CanvasTexture(c);
+		tex.needsUpdate = true;
+		_reticleTex = tex;
 		return tex;
 	}
 
