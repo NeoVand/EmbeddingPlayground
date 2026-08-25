@@ -31,10 +31,28 @@
 		return () => ro.disconnect();
 	});
 
+	// Follow the newest tokens: when the token count grows (trajectory
+	// playback appends words), glide the view to the bottom of the matrix so
+	// the arriving rows stay in frame. Only when the content overflows.
+	let lastTokenCount = 0;
+	function followNewestTokens() {
+		if (!container || !r?.tokens) return;
+		const n = r.tokens.length;
+		if (n === lastTokenCount) return;
+		lastTokenCount = n;
+		requestAnimationFrame(() => {
+			if (!container) return;
+			if (container.scrollHeight > container.clientHeight + 4) {
+				container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+			}
+		});
+	}
+
 	$effect(() => {
 		void r;
 		void theme.tokens;
 		draw();
+		followNewestTokens();
 	});
 
 	function draw() {

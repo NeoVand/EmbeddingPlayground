@@ -104,5 +104,12 @@
 		position: absolute;
 		inset: 0;
 		z-index: 0;
+		transition: bottom 0.28s ease;
+	}
+	/* The 3D view shifts up with the docks — projected points never hide
+	   behind the inspector drawer. The cloud's ResizeObserver re-fits the
+	   camera as the transition runs. */
+	.shell.inspector-open .cloud-layer {
+		bottom: calc(var(--inspector-h) + 24px);
 	}
 </style>
