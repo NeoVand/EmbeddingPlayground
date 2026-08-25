@@ -50,10 +50,12 @@ export interface ModelInfo {
 	 */
 	loaderKind?: 'pipeline' | 'sentence-embedding-head';
 	/**
-	 * Some architectures (ModernBERT, Gemma) have ops that don't yet run on
-	 * WebGPU in transformers.js — rotary-embedding multiplies fail. When set
-	 * to 'wasm', the orchestrator forces the WASM device even if WebGPU is
-	 * available. WASM is slower but reliable for these models.
+	 * Force a specific device regardless of availability preference.
+	 * 'wasm' — for models whose quantized WebGPU output is not validated
+	 *   (EmbeddingGemma: silently-wrong q8/q4 vectors pre-transformers.js v4,
+	 *   not yet re-verified; its activations also don't support fp16).
+	 * 'webgpu' — for models whose quantization is too slow/big for WASM
+	 *   (pplx-embed q4).
 	 */
 	preferredDevice?: 'webgpu' | 'wasm';
 	/** Whether the model expects L2-normalized output (most modern ones do). */

@@ -8,7 +8,7 @@
 	 * cosine or euclidean distance. No generation.
 	 */
 
-	import { IconUpload } from '$lib/icons.js';
+	import { IconSearch, IconUpload } from '$lib/icons.js';
 	import { cosine, euclidean } from '$lib/math/similarity.js';
 	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { playground } from '$lib/stores/playground.svelte.js';
@@ -200,6 +200,7 @@
 	labId="rag"
 	dockTitle="Document"
 	resultsTitle="Query & results"
+	resultsIcon={IconSearch}
 	selected={selectedResult}
 	selectedLabel={selectedChunkId === 'query' ? 'QUERY' : selectedChunkId ? `chunk ${selectedChunkId}` : null}
 	scopeHint="Click any chunk or the QUERY reticle to inspect its embedding."

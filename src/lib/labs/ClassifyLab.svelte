@@ -8,7 +8,7 @@
 	 * faked near-certainty — now the uncertainty is honest and explorable.)
 	 */
 
-	import { IconAdd, IconRemove, IconTemperature, IconUpload } from '$lib/icons.js';
+	import { IconAdd, IconPercent, IconRemove, IconTemperature, IconUpload } from '$lib/icons.js';
 	import { cosine } from '$lib/math/similarity.js';
 	import { columnMeans, l2NormalizeInPlace } from '$lib/math/stats.js';
 	import type { EmbeddingResult } from '$lib/models/types.js';
@@ -237,6 +237,7 @@
 	labId="classify"
 	dockTitle="Training data"
 	resultsTitle="Prediction"
+	resultsIcon={IconPercent}
 	selected={selectedResult}
 	selectedLabel={selectedId === 'query' ? 'QUERY' : selectedId ? 'example' : null}
 	scopeHint="Click any training example or the QUERY reticle to inspect its embedding."
@@ -293,12 +294,14 @@
 				{#each lab.examples as ex (ex.id)}
 					{@const classIdx = datasetClasses.indexOf(ex.label)}
 					<li class="item-row" style:--c={theme.hueCss(labelHue(ex.label, classIdx))}>
-						<input
-							class="fld"
+						<textarea
+							class="fld row"
+							rows="1"
+							spellcheck="false"
 							value={ex.text}
-							oninput={(e) => setExampleText(ex.id, (e.target as HTMLInputElement).value)}
+							oninput={(e) => setExampleText(ex.id, (e.target as HTMLTextAreaElement).value)}
 							placeholder="example text…"
-						/>
+						></textarea>
 						<input
 							class="fld label-fld"
 							value={ex.label}

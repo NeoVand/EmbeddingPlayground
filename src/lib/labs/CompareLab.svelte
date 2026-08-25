@@ -7,7 +7,7 @@
 	 * them (embedded lazily, only when toggled on).
 	 */
 
-	import { IconAdd, IconRemove } from '$lib/icons.js';
+	import { IconAdd, IconRemove, IconStats } from '$lib/icons.js';
 	import { cosine, dot, euclidean, norm } from '$lib/math/similarity.js';
 	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { playground } from '$lib/stores/playground.svelte.js';
@@ -229,6 +229,7 @@
 	labId="compare"
 	dockTitle="Texts"
 	resultsTitle="Similarity"
+	resultsIcon={IconStats}
 	selected={selectedResult}
 	selectedLabel={selectedId}
 	scopeHint="Click any labeled point in the cloud to see its embedding broken apart."
@@ -262,12 +263,14 @@
 				{#each lab.extras as ex, i (ex.id)}
 					<div class="item-row" style:--c={theme.hueCss(EXTRA_HUES[i % EXTRA_HUES.length])}>
 						<span class="hue-badge">{extraLabel(i)}</span>
-						<input
-							class="fld"
+						<textarea
+							class="fld row"
+							rows="1"
+							spellcheck="false"
 							value={ex.text}
-							oninput={(e) => setExtra(ex.id, (e.target as HTMLInputElement).value)}
+							oninput={(e) => setExtra(ex.id, (e.target as HTMLTextAreaElement).value)}
 							placeholder="another sentence for scale…"
-						/>
+						></textarea>
 						<button class="icon-btn danger" onclick={() => removeExtra(ex.id)} aria-label="Remove">
 							<IconRemove size={13} />
 						</button>

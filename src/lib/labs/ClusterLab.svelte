@@ -270,12 +270,14 @@
 			<ul class="sent-list">
 				{#each lab.sentences as s (s.id)}
 					<li class="item-row">
-						<input
-							class="fld"
+						<textarea
+							class="fld row"
+							rows="1"
+							spellcheck="false"
 							value={s.text}
-							oninput={(e) => setSentenceText(s.id, (e.target as HTMLInputElement).value)}
+							oninput={(e) => setSentenceText(s.id, (e.target as HTMLTextAreaElement).value)}
 							placeholder="a sentence to cluster…"
-						/>
+						></textarea>
 						<button class="icon-btn danger" onclick={() => removeSentence(s.id)} aria-label="Remove">
 							<IconRemove size={13} />
 						</button>
@@ -435,8 +437,10 @@
 		font-size: 11px;
 		line-height: 1.45;
 		color: var(--text-muted);
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
 		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 </style>

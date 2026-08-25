@@ -23,11 +23,13 @@ export { default as IconChevronRight } from '@lucide/svelte/icons/chevron-right'
 export { default as IconCollapse } from '@lucide/svelte/icons/panel-left-close';
 export { default as IconExpand } from '@lucide/svelte/icons/panel-left-open';
 
-// Inspector / metrics.
+// Inspector / metrics / results-dock identities.
 export { default as IconStats } from '@lucide/svelte/icons/sigma';
 export { default as IconHeatmap } from '@lucide/svelte/icons/layers';
 export { default as IconDims } from '@lucide/svelte/icons/activity';
 export { default as IconTarget } from '@lucide/svelte/icons/locate-fixed';
+export { default as IconSearch } from '@lucide/svelte/icons/search';
+export { default as IconPercent } from '@lucide/svelte/icons/percent';
 
 // Actions.
 export { default as IconAdd } from '@lucide/svelte/icons/plus';

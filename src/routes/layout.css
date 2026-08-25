@@ -162,9 +162,22 @@ textarea {
 .fld:focus {
 	border-color: color-mix(in oklab, var(--lab) 55%, transparent);
 }
+/* Textareas grow with their content (field-sizing is fine to rely on —
+   this is a WebGPU app, so the browser floor is recent Chromium) and never
+   show the browser's corner resize handle. */
 textarea.fld {
-	resize: vertical;
-	min-height: 52px;
+	resize: none;
+	field-sizing: content;
+	min-height: 34px;
+	max-height: 180px;
+	overflow-y: auto;
+}
+
+/* Single-row variant used inside list rows: wraps and grows from one line. */
+textarea.fld.row {
+	min-height: 0;
+	max-height: 120px;
+	line-height: 1.4;
 }
 
 /* Label above a field. */
@@ -257,9 +270,13 @@ textarea.fld {
    so a long list reads as text, not as a form. */
 .item-row {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: 6px;
 	min-width: 0;
+}
+.item-row .hue-badge,
+.item-row .icon-btn {
+	margin-top: 2px;
 }
 .item-row .fld {
 	flex: 1;

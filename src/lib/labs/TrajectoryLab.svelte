@@ -7,7 +7,7 @@
 	 * The play button replays the path word by word.
 	 */
 
-	import { IconPause, IconPlay } from '$lib/icons.js';
+	import { IconDims, IconPause, IconPlay } from '$lib/icons.js';
 	import { cosine } from '$lib/math/similarity.js';
 	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { playground } from '$lib/stores/playground.svelte.js';
@@ -198,6 +198,7 @@
 	labId="trajectory"
 	dockTitle="Sentence"
 	resultsTitle="Displacement"
+	resultsIcon={IconDims}
 	selected={selectedResult}
 	selectedLabel={selectedPrefix ? `+${selectedPrefix.k} ${selectedPrefix.word}` : null}
 	scopeHint="Click any word along the path to inspect that prefix's embedding."

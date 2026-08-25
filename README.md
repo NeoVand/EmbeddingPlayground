@@ -22,20 +22,24 @@ Click any point in the cloud and the **scope bar** along the bottom fills with i
 
 ## Models
 
-Eight models in the registry, all running in the browser via `@huggingface/transformers`, managed from the model panel (the chip on the rail — download states, backend badges, live progress):
+Twelve models in the registry, all running in the browser via `@huggingface/transformers` v4, managed from the model panel (the chip on the rail — download states, backend badges, live progress):
 
 | Model | Params | Dims | Pooling | Notes |
 | --- | --- | --- | --- | --- |
-| mxbai-embed-xsmall-v1 | 24M | 384 | mean | instant-load tier |
 | all-MiniLM-L6-v2 | 22M | 384 | mean | the classic baseline (default) |
-| granite-embedding-small-english-r2 | 47M | 384 | mean | ModernBERT, 8k context (WASM) |
+| mdbr-leaf-ir | 23M | 768 | head | best <30M on MTEB v2, 23 MB download |
+| mxbai-embed-xsmall-v1 | 24M | 384 | mean | instant-load tier |
+| granite-embedding-small-english-r2 | 47M | 384 | mean | ModernBERT, 8k context |
+| granite-embedding-97m-multilingual-r2 | 97M | 384 | cls | 200+ languages + code, 32k context |
 | nomic-embed-text-v1.5 | 137M | 768 | mean | Matryoshka-trained, query/doc prefixes |
-| granite-embedding-english-r2 | 149M | 768 | mean | long-document retrieval (WASM) |
+| granite-embedding-english-r2 | 149M | 768 | mean | long-document retrieval |
 | snowflake-arctic-embed-m-v2.0 | 305M | 768 | cls | multilingual, query prefix |
 | embeddinggemma-300m | 300M | 768 | head | custom `sentence_embedding` loader (WASM) |
-| Qwen3-Embedding-0.6B | 596M | 1024 | last-token | top of MTEB for its size |
+| voyage-4-nano | 340M | 2048 | mean | first open Voyage, Matryoshka to 256 |
+| Qwen3-Embedding-0.6B | 596M | 1024 | last-token | strong MTEB, instruct-style queries |
+| pplx-embed-v1-0.6b | 600M | 1024 | mean | Perplexity, prompt-free, WebGPU-only q4 |
 
-WebGPU is the default device when available; ModernBERT/Gemma models force WASM (their rotary ops aren't WebGPU-ready in transformers.js yet). Models with instruction prefixes get them **per role** — queries embed with the query template, documents with the document template. Weights are cached by the browser; full embedding results are cached in memory and pooled vectors in localStorage.
+WebGPU is the default device when available (transformers.js v4's runtime fixed quantized inference on WebGPU, so the ModernBERT models no longer force WASM — only EmbeddingGemma still does, pending re-validation of its quantized output). Models with instruction prefixes get them **per role** — queries embed with the query template, documents with the document template. Weights are cached by the browser; full embedding results are cached in memory and pooled vectors in localStorage.
 
 ## Run it locally
 
