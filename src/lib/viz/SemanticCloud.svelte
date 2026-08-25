@@ -33,6 +33,12 @@
 		variant?: CloudVariant;
 		/** Always-on crosshair reticle (the active query in RAG/Classify). */
 		pinned?: boolean;
+		/**
+		 * Not yet revealed (trajectory playback). Hidden points still feed the
+		 * PCA, so the projection basis is computed over the COMPLETE set and
+		 * revealed points never shift as more appear.
+		 */
+		hidden?: boolean;
 	}
 	export interface CloudLink {
 		from: string;
@@ -76,6 +82,7 @@
 		labelEl: HTMLDivElement | null;
 		hue: number;
 		pinned: boolean;
+		hidden: boolean;
 		baseSize: number;
 		target: THREE.Vector3;
 	}
@@ -433,6 +440,7 @@
 			labelEl: null,
 			hue: NaN,
 			pinned: !p.pinned, // force first-update to apply
+			hidden: false,
 			baseSize: -1,
 			target: new THREE.Vector3()
 		};
@@ -489,6 +497,7 @@
 				n.group.add(label);
 				n.label = label;
 				n.labelEl = el;
+				if (n.hidden) el.style.display = 'none';
 			}
 			if (n.labelEl!.textContent !== p.label) n.labelEl!.textContent = p.label;
 		} else if (n.label) {
@@ -498,9 +507,18 @@
 			n.labelEl = null;
 		}
 
+		// reveal state — hidden points keep their slot in the projection but
+		// don't render; on reveal they pop in at their (already fixed) position.
+		if (n.hidden !== !!p.hidden) {
+			n.hidden = !!p.hidden;
+			n.group.visible = !n.hidden;
+			if (n.labelEl) n.labelEl.style.display = n.hidden ? 'none' : '';
+			if (!n.hidden) n.group.scale.setScalar(0.01);
+		}
+
 		if (target) {
 			n.target.set(target[0], target[1], target[2]);
-			if (isNew) n.group.position.copy(n.target);
+			if (isNew || n.hidden) n.group.position.copy(n.target);
 		}
 	}
 
@@ -819,11 +837,13 @@
 		}
 		updateLineEndpoints();
 
-		// Hover raycast — meshes first, then dots.
+		// Hover raycast — visible meshes first, then dots.
 		raycaster.setFromCamera(mouse, camera);
 		let foundId: string | null = null;
 		const groups: THREE.Object3D[] = [];
-		for (const n of nodes.values()) groups.push(n.group);
+		for (const n of nodes.values()) {
+			if (n.group.visible) groups.push(n.group);
+		}
 		const hits = raycaster.intersectObjects(groups, true);
 		if (hits.length > 0) {
 			let o: THREE.Object3D | null = hits[0].object;

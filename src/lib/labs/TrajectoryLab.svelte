@@ -205,6 +205,10 @@
 	// selection.
 	const labelEvery = $derived(Math.max(1, Math.ceil(prefixes.length / 24)));
 
+	// All points are ALWAYS passed to the cloud — playback only flips their
+	// `hidden` flag. The PCA basis is therefore computed once over the whole
+	// path, and revealed points hold their positions instead of re-projecting
+	// as the walk grows.
 	const points = $derived.by<CloudPoint[]>(() => {
 		const out: CloudPoint[] = [];
 		if (!complete) return out;
@@ -212,7 +216,6 @@
 		const lastK = prefixes[N - 1]?.k;
 		for (let idx = 0; idx < N; idx++) {
 			const p = prefixes[idx];
-			if (p.k > visibleK) continue;
 			const v = vecOf(p.k);
 			if (!v) continue;
 			const tFrac = idx / Math.max(1, N - 1);
@@ -226,7 +229,8 @@
 				hue,
 				label: showLabel ? p.word : undefined,
 				hoverText: `+${p.k} «${p.chunk}» — …${p.text.slice(-70)}`,
-				size: isEdge || isLurch ? 1.05 : 0.8
+				size: isEdge || isLurch ? 1.05 : 0.8,
+				hidden: p.k > visibleK
 			});
 		}
 		return out;
