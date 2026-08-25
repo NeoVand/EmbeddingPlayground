@@ -44,10 +44,11 @@
 		position: absolute;
 		top: 12px;
 		width: clamp(264px, 23vw, 336px);
-		max-height: calc(100% - 74px);
+		max-height: calc(100% - 12px - var(--dock-bottom, 62px));
 		z-index: 20;
 		display: flex;
 		flex-direction: column;
+		transition: max-height 0.28s ease;
 	}
 	.dock.left {
 		left: 78px;

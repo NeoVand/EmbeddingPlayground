@@ -131,15 +131,20 @@ function clamp01(x: number): number {
 	return Math.max(0, Math.min(1, x));
 }
 
-/** Convenience: viz color for a value t ∈ [-1, 1] using a diverging accent↔contrast scale. */
+/**
+ * Convenience: viz color for a value t ∈ [-1, 1] using a diverging
+ * accent↔contrast scale. Dark-anchored: near-zero values sink toward the
+ * background instead of sitting at mid-lightness, so heatmaps read as
+ * signal-on-dark rather than a saturated wall.
+ */
 export function divergingRgb(t: number, p: Primitives): [number, number, number] {
 	const tt = Math.max(-1, Math.min(1, t));
 	const hueA = p.accentHue;
 	const hueB = p.contrastHue;
 	// magnitude → lightness/chroma; sign → hue
 	const mag = Math.abs(tt);
-	const l = 0.45 + 0.4 * mag;
-	const c = p.accentChroma * (0.3 + 0.7 * mag);
+	const l = 0.22 + 0.6 * mag;
+	const c = p.accentChroma * (0.12 + 1.05 * mag);
 	const h = tt < 0 ? hueA : hueB;
 	return oklchToRgb(l, c, h);
 }

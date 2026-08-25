@@ -2,8 +2,9 @@
 	/**
 	 * The scope bar — a slim strip along the bottom showing the selected
 	 * point's vitals inline. Pulling it up opens the full inspector drawer
-	 * (stats · token×dimension heatmap · dimension bars) as an overlay, so
-	 * no space is permanently reserved.
+	 * (stats · token×dimension heatmap · dimension bars). Opening the drawer
+	 * shrinks the docks (via --dock-bottom on the shell) so it never hides
+	 * dock content behind an overlay.
 	 */
 
 	import { IconChevronDown, IconChevronUp, IconTarget } from '$lib/icons.js';
@@ -49,38 +50,54 @@
 
 {#if shellUI.inspectorOpen}
 	<section class="drawer glass-strong">
-		<div class="stats">
-			<div class="stats-head no-select">
-				<span class="sel-chip"><IconTarget size={12} />{label ?? '—'}</span>
-				{#if modelShortName}<span class="model tabular">{modelShortName}</span>{/if}
-			</div>
-			{#if stats}
-				<dl>
-					<div class="srow"><dt>dimensions</dt><dd class="tabular">{stats.dim}</dd></div>
-					<div class="srow"><dt>‖vector‖</dt><dd class="tabular">{stats.normVal.toFixed(4)}</dd></div>
-					<div class="srow"><dt>mean</dt><dd class="tabular">{stats.meanVal.toExponential(2)}</dd></div>
-					<div class="srow"><dt>std-dev</dt><dd class="tabular">{stats.stdVal.toFixed(4)}</dd></div>
-					<div class="srow"><dt>max |·|</dt><dd class="tabular">{stats.absMaxVal.toFixed(4)}</dd></div>
-					{#if stats.tokens != null}
-						<div class="srow"><dt>tokens</dt><dd class="tabular">{stats.tokens}</dd></div>
-					{/if}
-					<div class="srow">
-						<dt>elapsed</dt>
-						<dd class="tabular">{stats.elapsedMs > 0 ? `${stats.elapsedMs.toFixed(1)} ms` : 'cached'}</dd>
-					</div>
-				</dl>
-				{#if result?.text}
-					<p class="src-text">{result.text}</p>
-				{/if}
+		<header class="d-head no-select">
+			<span class="sel-chip"><IconTarget size={12} />{label ?? '—'}</span>
+			{#if modelShortName}<span class="model tabular">{modelShortName}</span>{/if}
+			{#if result?.text}
+				<span class="src" title={result.text}>{result.text}</span>
 			{:else}
-				<p class="empty-note">{hint}</p>
+				<span class="src empty">{hint}</span>
 			{/if}
+			<span class="scale-chip tabular" title="Diverging value scale: teal negative, dark zero, amber positive">
+				<i>−</i><span class="grad"></span><i>+</i>
+			</span>
+			<button class="icon-btn" onclick={toggle} aria-label="Collapse inspector">
+				<IconChevronDown size={15} />
+			</button>
+		</header>
+
+		<div class="panes">
+			<div class="stats">
+				{#if stats}
+					<div class="tiles">
+						<div class="tile">
+							<span class="tl no-select">dims</span>
+							<span class="tv tabular">{stats.dim}</span>
+						</div>
+						<div class="tile">
+							<span class="tl no-select">‖v‖</span>
+							<span class="tv tabular">{stats.normVal.toFixed(3)}</span>
+						</div>
+					</div>
+					<dl>
+						<div class="srow"><dt>mean</dt><dd class="tabular">{stats.meanVal.toExponential(2)}</dd></div>
+						<div class="srow"><dt>std-dev</dt><dd class="tabular">{stats.stdVal.toFixed(4)}</dd></div>
+						<div class="srow"><dt>max |·|</dt><dd class="tabular">{stats.absMaxVal.toFixed(4)}</dd></div>
+						{#if stats.tokens != null}
+							<div class="srow"><dt>tokens</dt><dd class="tabular">{stats.tokens}</dd></div>
+						{/if}
+						<div class="srow">
+							<dt>elapsed</dt>
+							<dd class="tabular">{stats.elapsedMs > 0 ? `${stats.elapsedMs.toFixed(1)} ms` : 'cached'}</dd>
+						</div>
+					</dl>
+				{:else}
+					<p class="empty-note">{hint}</p>
+				{/if}
+			</div>
+			<div class="heat"><TokenHeatmap {result} /></div>
+			<div class="bars"><DimensionBars vector={result?.vector ?? null} /></div>
 		</div>
-		<div class="heat"><TokenHeatmap {result} /></div>
-		<div class="bars"><DimensionBars vector={result?.vector ?? null} /></div>
-		<button class="close-tab no-select" onclick={toggle} aria-label="Collapse inspector">
-			<IconChevronDown size={14} />
-		</button>
 	</section>
 {:else}
 	<button class="bar glass no-select" onclick={toggle} aria-label="Open inspector">
@@ -184,101 +201,153 @@
 		color: var(--text-subtle);
 	}
 
+	/* ---------------- drawer ---------------- */
 	.drawer {
 		position: absolute;
 		left: 78px;
 		right: 12px;
 		bottom: 12px;
-		height: min(320px, 44vh);
+		height: var(--inspector-h, min(300px, 38vh));
 		z-index: 25;
+		display: flex;
+		flex-direction: column;
+		padding: 10px 16px 14px;
+	}
+	.d-head {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding-bottom: 9px;
+		margin-bottom: 10px;
+		border-bottom: 1px solid oklch(1 0 0 / 0.07);
+		flex-shrink: 0;
+	}
+	.model {
+		font-size: 10px;
+		color: var(--text-subtle);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		font-weight: 600;
+		flex-shrink: 0;
+	}
+	.src {
+		flex: 1;
+		min-width: 0;
+		font-size: 11.5px;
+		color: var(--text-muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.src.empty {
+		color: var(--text-subtle);
+	}
+	.scale-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 10px;
+		color: var(--text-subtle);
+		flex-shrink: 0;
+	}
+	.scale-chip .grad {
+		width: 56px;
+		height: 6px;
+		border-radius: 3px;
+		background: linear-gradient(
+			90deg,
+			var(--accent),
+			oklch(0.22 0.01 200) 50%,
+			var(--contrast)
+		);
+	}
+	.panes {
+		flex: 1;
+		min-height: 0;
 		display: grid;
-		grid-template-columns: 220px 1.5fr 1fr;
-		gap: 18px;
-		padding: 14px 16px;
+		grid-template-columns: 200px 1.6fr 1fr;
+		gap: 0;
 	}
 	.stats {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 10px;
 		min-width: 0;
 		overflow-y: auto;
+		padding-right: 16px;
 	}
-	.stats-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
+	.tiles {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
 		gap: 8px;
 	}
-	.model {
-		font-size: 10px;
-		color: var(--lab);
-		letter-spacing: 0.08em;
+	.tile {
+		border: 1px solid var(--border);
+		border-radius: 9px;
+		padding: 7px 10px;
+		background: oklch(1 0 0 / 0.025);
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		min-width: 0;
+	}
+	.tl {
+		font-size: 9px;
+		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		font-weight: 600;
+		color: var(--text-subtle);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.tv {
+		font-size: 16px;
+		font-weight: 650;
+		color: var(--lab);
 	}
 	dl {
 		display: flex;
 		flex-direction: column;
-		gap: 3px;
+		gap: 2px;
 		margin: 0;
 	}
 	.srow {
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
-		font-size: 12px;
-		padding: 2px 0;
+		font-size: 11.5px;
+		padding: 2.5px 1px;
 	}
 	dt {
-		color: var(--text-muted);
+		color: var(--text-subtle);
 	}
 	dd {
 		margin: 0;
-		color: var(--text-primary);
+		color: var(--text-secondary);
 	}
-	.src-text {
-		font-size: 11px;
-		line-height: 1.5;
-		color: var(--text-subtle);
-		margin: 4px 0 0;
-		border-top: 1px solid oklch(1 0 0 / 0.06);
-		padding-top: 8px;
-		display: -webkit-box;
-		-webkit-line-clamp: 4;
-		line-clamp: 4;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-	.heat,
-	.bars {
+	.heat {
+		border-left: 1px solid oklch(1 0 0 / 0.07);
+		padding: 0 16px;
 		min-width: 0;
 		min-height: 0;
 	}
-	.close-tab {
-		position: absolute;
-		top: -12px;
-		right: 18px;
-		width: 34px;
-		height: 24px;
-		border-radius: 8px 8px 0 0;
-		border: 1px solid var(--border-strong);
-		border-bottom: none;
-		background: inherit;
-		color: var(--text-muted);
-		cursor: pointer;
-		display: grid;
-		place-items: center;
-	}
-	.close-tab:hover {
-		color: var(--text-primary);
+	.bars {
+		border-left: 1px solid oklch(1 0 0 / 0.07);
+		padding-left: 16px;
+		min-width: 0;
+		min-height: 0;
 	}
 
 	@media (max-width: 1000px) {
-		.drawer {
-			grid-template-columns: 1.4fr 1fr;
+		.panes {
+			grid-template-columns: 1.5fr 1fr;
 		}
 		.stats {
 			display: none;
+		}
+		.heat {
+			border-left: none;
+			padding-left: 0;
 		}
 	}
 </style>

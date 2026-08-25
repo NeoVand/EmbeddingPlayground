@@ -82,10 +82,13 @@
 			}
 		}
 
+		// When rows get shorter than the type, label every Nth token instead of
+		// letting labels overlap into mush.
+		const labelStep = rowH >= 11 ? 1 : Math.ceil(12 / rowH);
 		ctx.font = '10.5px Inter, sans-serif';
 		ctx.textBaseline = 'middle';
 		ctx.textAlign = 'right';
-		for (let i = 0; i < tokens.length; i++) {
+		for (let i = 0; i < tokens.length; i += labelStep) {
 			const y = i * rowH + rowH / 2;
 			const t = tokens[i];
 			ctx.fillStyle = t.isSpecial ? theme.tokens.textSubtle : theme.tokens.textSecondary;

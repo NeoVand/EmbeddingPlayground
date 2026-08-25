@@ -56,6 +56,7 @@
 
 <div
 	class="shell"
+	class:inspector-open={shellUI.inspectorOpen}
 	style:--lab={labCss}
 	style:--lab-dim={`color-mix(in oklab, ${labCss} 15%, transparent)`}
 >
@@ -90,6 +91,14 @@
 		position: absolute;
 		inset: 0;
 		overflow: hidden;
+		/* Geometry shared with the docks: when the inspector drawer opens,
+		   --dock-bottom grows and the docks shrink to sit above it — the
+		   drawer never occludes dock content. */
+		--inspector-h: min(300px, 38vh);
+		--dock-bottom: 62px;
+	}
+	.shell.inspector-open {
+		--dock-bottom: calc(var(--inspector-h) + 24px);
 	}
 	.cloud-layer {
 		position: absolute;
