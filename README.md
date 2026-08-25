@@ -26,12 +26,12 @@ Twelve models in the registry, all running in the browser via `@huggingface/tran
 
 | Model | Params | Dims | Pooling | Notes |
 | --- | --- | --- | --- | --- |
-| all-MiniLM-L6-v2 | 22M | 384 | mean | the classic baseline (default) |
+| all-MiniLM-L6-v2 | 22M | 384 | mean | the classic baseline |
 | mdbr-leaf-ir | 23M | 768 | head | best <30M on MTEB v2, 23 MB download |
 | mxbai-embed-xsmall-v1 | 24M | 384 | mean | instant-load tier |
 | granite-embedding-small-english-r2 | 47M | 384 | mean | ModernBERT, 8k context |
 | granite-embedding-97m-multilingual-r2 | 97M | 384 | cls | 200+ languages + code, 32k context |
-| nomic-embed-text-v1.5 | 137M | 768 | mean | Matryoshka-trained, query/doc prefixes |
+| nomic-embed-text-v1.5 | 137M | 768 | mean | Matryoshka-trained, query/doc prefixes (default) |
 | granite-embedding-english-r2 | 149M | 768 | mean | long-document retrieval |
 | snowflake-arctic-embed-m-v2.0 | 305M | 768 | cls | multilingual, query prefix |
 | embeddinggemma-300m | 300M | 768 | head | custom `sentence_embedding` loader (WASM) |

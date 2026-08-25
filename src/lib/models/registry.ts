@@ -252,10 +252,10 @@ export function getModel(id: string): ModelInfo {
 	return m;
 }
 
-// Default to MiniLM — small, fast, WebGPU-compatible, instant on first load.
-// Users can switch to Granite Small R2 for the same speed tier with longer
-// context and better quality (but WASM-only, so a hair slower).
-export const DEFAULT_MODEL_ID = 'minilm-l6';
+// Default to Nomic 1.5 — noticeably better geometry than the MiniLM-class
+// models (which stay in the registry as the fast/baseline tier), Matryoshka-
+// trained, role prefixes, WebGPU. ~140 MB first download, cached after.
+export const DEFAULT_MODEL_ID = 'nomic-1.5';
 
 /** Returns the best model id for a given purpose. Falls back to default. */
 export function recommendedFor(

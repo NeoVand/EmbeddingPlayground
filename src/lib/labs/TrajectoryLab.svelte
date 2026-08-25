@@ -39,12 +39,27 @@
 			sentence:
 				'The morning began quietly enough, with coffee cooling on the desk. Then the dragon landed on the parking garage, scattering commuters like startled pigeons. Quarterly earnings, the CFO insisted, would still beat guidance despite the fire damage. Meanwhile the sourdough needed folding, its gluten strands relaxing into silky windows. The referee blew the whistle: offside, goal disallowed, the stadium erupting. In the operating theater, the surgeon asked for a clamp and a miracle. The senate filibuster entered its ninth hour over asteroid mining rights. Grandmother’s funeral was Tuesday; her tomato garden did not notice. The quantum computer decohered, taking the encryption keys with it. A mariachi band boarded the submarine with tubas and grievances. Glaciers calved into the opera house during the second aria. And somewhere in the Pacific, a whale sang mortgage advice to the tax auditors of Atlantis.',
 			note: 'Genre roulette — every sentence is a new universe, so the path keeps lurching instead of converging.'
+		},
+		{
+			label: 'whiplash',
+			// Benchmarked on Nomic 1.5 (the default model): ~96 words lands
+			// exactly at stride 2 → 48 playback steps, and hard register flips
+			// (legal / cooking / sports / medical / love / code / chess /
+			// liturgy / tax) keep the path moving to the end. Highest total
+			// path length of every candidate tested on Nomic.
+			sentence:
+				'The quarterly numbers looked fine. WHEREAS the tenant shall surrender all disputed falcons. Fold the egg whites gently or the batter deflates. HE SCORES — THE CROWD ERUPTS. Fever at 39.2, lymph nodes palpable, order imaging now. My darling, the vineyard forgot its drought when you laughed. The mainframe dreams in kernel panic. Checkmate: a bishop nobody had watched. The glacier calved a cathedral into the fjord. Our Father, who art in escrow. The mariachi submarine surfaced through the koi pond. Deduct grief on line twenty-two. And the whale, fluent in maritime law, sued the moon.',
+			note: 'Register whiplash — legal, cooking, sports, medical, love, code, liturgy… tuned on Nomic for maximum sustained movement.'
 		}
 	];
 
 	interface Prefix {
 		k: number;
 		word: string;
+		/** The words this step ADDED since the previous sampled prefix — so
+		 * with a stride of 3, a step owns "morning began quietly", not just
+		 * its landing word, and no word ever looks skipped. */
+		chunk: string;
 		text: string;
 	}
 	const words = $derived(lab.sentence.match(/\S+/g) ?? []);
@@ -57,14 +72,23 @@
 	const MAX_STEPS = 48;
 	const stride = $derived(words.length <= MAX_STEPS ? 1 : Math.ceil(words.length / MAX_STEPS));
 	const prefixes = $derived.by<Prefix[]>(() => {
-		const mk = (i: number): Prefix => ({
-			k: i + 1,
-			word: words[i].replace(/[.,;:!?—]+$/, ''),
-			text: words.slice(0, i + 1).join(' ')
-		});
+		const clean = (w: string) => w.replace(/[.,;:!?—]+$/, '');
 		const out: Prefix[] = [];
-		for (let i = 0; i < words.length; i += stride) out.push(mk(i));
-		if (words.length > 0 && (words.length - 1) % stride !== 0) out.push(mk(words.length - 1));
+		let prev = -1;
+		const push = (i: number) => {
+			out.push({
+				k: i + 1,
+				word: clean(words[i]),
+				chunk: words
+					.slice(prev + 1, i + 1)
+					.map(clean)
+					.join(' '),
+				text: words.slice(0, i + 1).join(' ')
+			});
+			prev = i;
+		};
+		for (let i = 0; i < words.length; i += stride) push(i);
+		if (words.length > 0 && (words.length - 1) % stride !== 0) push(words.length - 1);
 		return out;
 	});
 
@@ -201,7 +225,7 @@
 				vector: v,
 				hue,
 				label: showLabel ? p.word : undefined,
-				hoverText: `[${p.k}] …${p.text.slice(-90)}`,
+				hoverText: `+${p.k} «${p.chunk}» — …${p.text.slice(-70)}`,
 				size: isEdge || isLurch ? 1.05 : 0.8
 			});
 		}
@@ -238,7 +262,7 @@
 			const a = vecOf(prefixes[i - 1].k);
 			const b = vecOf(prefixes[i].k);
 			if (!a || !b || a.length !== b.length) continue;
-			out.push({ k: prefixes[i].k, word: prefixes[i].word, dist: 1 - cosine(a, b) });
+			out.push({ k: prefixes[i].k, word: prefixes[i].chunk, dist: 1 - cosine(a, b) });
 		}
 		return out;
 	});
