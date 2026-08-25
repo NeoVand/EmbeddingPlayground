@@ -30,7 +30,16 @@
 		{ label: 'reveal', sentence: 'She opened the door and saw the body.', note: 'Innocuous start, dramatic ending.' },
 		{ label: 'homonym A', sentence: 'He walked to the bank to fish for trout.', note: 'Disambiguates toward the riverbank meaning.' },
 		{ label: 'homonym B', sentence: 'He walked to the bank to deposit a check.', note: 'Same opening, financial meaning instead.' },
-		{ label: 'negation', sentence: 'I really love this movie not at all.', note: '"not" drags the trajectory across the sentiment axis.' }
+		{ label: 'negation', sentence: 'I really love this movie not at all.', note: '"not" drags the trajectory across the sentiment axis.' },
+		{
+			label: 'roulette',
+			// Benchmarked to keep displacing all the way to the end: one alien
+			// domain per sentence, no recurring frame, hard pivots saved for
+			// the tail. Twice the total path length of a normal paragraph.
+			sentence:
+				'The morning began quietly enough, with coffee cooling on the desk. Then the dragon landed on the parking garage, scattering commuters like startled pigeons. Quarterly earnings, the CFO insisted, would still beat guidance despite the fire damage. Meanwhile the sourdough needed folding, its gluten strands relaxing into silky windows. The referee blew the whistle: offside, goal disallowed, the stadium erupting. In the operating theater, the surgeon asked for a clamp and a miracle. The senate filibuster entered its ninth hour over asteroid mining rights. Grandmother’s funeral was Tuesday; her tomato garden did not notice. The quantum computer decohered, taking the encryption keys with it. A mariachi band boarded the submarine with tubas and grievances. Glaciers calved into the opera house during the second aria. And somewhere in the Pacific, a whale sang mortgage advice to the tax auditors of Atlantis.',
+			note: 'Genre roulette — every sentence is a new universe, so the path keeps lurching instead of converging.'
+		}
 	];
 
 	interface Prefix {
