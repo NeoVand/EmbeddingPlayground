@@ -18,7 +18,9 @@
 	import { createLabState } from './labState.svelte.js';
 
 	const lab = createLabState('trajectory', {
-		sentence: 'The food was great until I got food poisoning.'
+		sentence: 'The food was great until I got food poisoning.',
+		/** Playback speed multiplier — 450ms per step at 1×. */
+		speed: 1
 	});
 
 	const presets = [
@@ -114,30 +116,36 @@
 
 	// ---------- playback ----------
 	let playIdx = $state<number | null>(null);
-	let playTimer: ReturnType<typeof setInterval> | null = null;
+	let playTimer: ReturnType<typeof setTimeout> | null = null;
 	const playing = $derived(playIdx != null);
 
+	// Self-rescheduling timeout (not setInterval) so dragging the speed
+	// slider mid-playback takes effect on the very next step.
+	function scheduleStep() {
+		playTimer = setTimeout(() => {
+			if (playIdx == null) return;
+			if (playIdx + 1 < prefixes.length) {
+				playIdx = playIdx + 1;
+				scheduleStep();
+			} else {
+				stopPlayback();
+			}
+		}, 450 / (lab.speed || 1));
+	}
 	function startPlayback() {
 		stopPlayback();
 		if (!complete || prefixes.length < 2) return;
 		playIdx = 0;
-		playTimer = setInterval(() => {
-			if (playIdx == null) return;
-			if (playIdx + 1 < prefixes.length) {
-				playIdx = playIdx + 1;
-			} else {
-				stopPlayback();
-			}
-		}, 450);
+		scheduleStep();
 	}
 	function stopPlayback() {
-		if (playTimer) clearInterval(playTimer);
+		if (playTimer) clearTimeout(playTimer);
 		playTimer = null;
 		playIdx = null;
 	}
 	$effect(() => {
 		return () => {
-			if (playTimer) clearInterval(playTimer);
+			if (playTimer) clearTimeout(playTimer);
 		};
 	});
 
@@ -293,13 +301,19 @@
 				</div>
 			</div>
 		{:else}
-			<button
-				class="play-btn no-select"
-				onclick={() => (playing ? stopPlayback() : startPlayback())}
-				disabled={!complete || prefixes.length < 2}
-			>
-				{#if playing}<IconPause size={14} /> stop{:else}<IconPlay size={14} /> replay the path{/if}
-			</button>
+			<div class="play-row">
+				<button
+					class="play-btn no-select"
+					onclick={() => (playing ? stopPlayback() : startPlayback())}
+					disabled={!complete || prefixes.length < 2}
+				>
+					{#if playing}<IconPause size={14} /> stop{:else}<IconPlay size={14} /> replay the path{/if}
+				</button>
+				<label class="speed no-select" title="Playback speed">
+					<input type="range" min="0.5" max="4" step="0.5" bind:value={lab.speed} />
+					<span class="tabular">{lab.speed}×</span>
+				</label>
+			</div>
 		{/if}
 
 		<div class="hairline"></div>
@@ -377,6 +391,29 @@
 		color: var(--text-subtle);
 		text-transform: none;
 		letter-spacing: 0;
+	}
+	.play-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+	.play-row .play-btn {
+		flex: 1;
+	}
+	.speed {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.speed input {
+		width: 74px;
+		accent-color: var(--lab);
+	}
+	.speed span {
+		font-size: 10.5px;
+		color: var(--text-subtle);
+		min-width: 24px;
+		text-align: right;
 	}
 	.play-btn {
 		display: inline-flex;
