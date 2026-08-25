@@ -20,6 +20,7 @@
 	import { theme } from '$lib/theme/theme.svelte.js';
 	import { oklchToRgb } from '$lib/theme/palette.js';
 	import { pca } from '$lib/math/pca.js';
+	import { shellUI } from '$lib/shell/shellState.svelte.js';
 
 	export type CloudVariant = 'sphere' | 'ring' | 'dot';
 
@@ -240,6 +241,8 @@
 		controls.panSpeed = 0.6;
 		controls.minDistance = 0.4;
 		controls.maxDistance = 12;
+		controls.autoRotateSpeed = 0.6; // one slow, cinematic revolution/minute
+		controls.autoRotate = shellUI.spin;
 
 		scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 		const key = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -774,6 +777,12 @@
 		updateSelectionStyling();
 	});
 
+	// Global spin preference → slow camera orbit.
+	$effect(() => {
+		const on = shellUI.spin;
+		if (controls) controls.autoRotate = on;
+	});
+
 	// Theme change → re-color everything in place.
 	$effect(() => {
 		void theme.scene;
@@ -879,6 +888,10 @@
 			<span class="text">{hoverText}</span>
 		</div>
 	{/if}
+	<label class="spin-toggle no-select" title="Slowly orbit the camera around the cloud">
+		<input type="checkbox" bind:checked={shellUI.spin} />
+		<span>spin</span>
+	</label>
 	<div class="hint no-select">
 		<span>drag — rotate</span>
 		<span class="dot">·</span>
@@ -968,6 +981,38 @@
 		text-align: center;
 		pointer-events: none;
 		z-index: 22;
+	}
+	.spin-toggle {
+		position: absolute;
+		bottom: 80px;
+		right: 16px;
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 9px;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text-subtle);
+		cursor: pointer;
+		z-index: 6;
+		opacity: 0.75;
+		transition:
+			opacity 0.15s ease,
+			color 0.15s ease;
+	}
+	.spin-toggle:hover {
+		opacity: 1;
+		color: var(--text-muted);
+	}
+	.spin-toggle input {
+		width: 11px;
+		height: 11px;
+		accent-color: var(--lab, var(--accent));
+		cursor: pointer;
+	}
+	.spin-toggle:has(input:checked) {
+		color: var(--lab, var(--accent));
+		opacity: 1;
 	}
 	.hint {
 		position: absolute;

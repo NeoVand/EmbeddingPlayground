@@ -50,6 +50,15 @@
 			sentence:
 				'The quarterly numbers looked fine. WHEREAS the tenant shall surrender all disputed falcons. Fold the egg whites gently or the batter deflates. HE SCORES — THE CROWD ERUPTS. Fever at 39.2, lymph nodes palpable, order imaging now. My darling, the vineyard forgot its drought when you laughed. The mainframe dreams in kernel panic. Checkmate: a bishop nobody had watched. The glacier calved a cathedral into the fjord. Our Father, who art in escrow. The mariachi submarine surfaced through the koi pond. Deduct grief on line twenty-two. And the whale, fluent in maritime law, sued the moon.',
 			note: 'Register whiplash — legal, cooking, sports, medical, love, code, liturgy… tuned on Nomic for maximum sustained movement.'
+		},
+		{
+			label: 'babel',
+			// Benchmarked champion on Qwen3 (last-token pooling): full-sentence
+			// register shifts, 141 words → stride 3 → 47 steps. Highest total
+			// path and the most late relative spikes of all Qwen candidates.
+			sentence:
+				'WHEREAS the party of the first part agrees to surrender the disputed goats. My darling, when you laughed the vineyard forgot its drought entirely. HE SHOOTS — HE SCORES — THE CROWD IS ON ITS FEET. Add the cardamom slowly or the custard will seize. Fever presenting at 39.2, lymph nodes palpable, recommend immediate imaging. The glacier calved a cathedral of ice into the gray fjord. The password was incorrect a beautiful seventh time. Our Father, who art in escrow, hallowed be thy lease. The mitochondria, as everyone knows, is the powerhouse of the alibi. Checkmate arrived quietly, a bishop nobody had been watching. Winds gusting forty knots by evening; small craft stay ashore. Sold! — the Vermeer, to the gentleman bidding in Morse. In lieu of flowers, please return her casserole dish. And the goats, unsurrendered, watched the helicopter leave.',
+			note: 'A babel of registers — contract, love letter, sportscast, recipe, chart notes, liturgy, forecast, auction, obituary. Tuned on Qwen3.'
 		}
 	];
 
