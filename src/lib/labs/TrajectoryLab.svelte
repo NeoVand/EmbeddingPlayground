@@ -126,8 +126,8 @@
 	// Reset selection and queue an auto-play when a new batch starts.
 	$effect(() => {
 		void lab.sentence;
+		stopPlayback(false);
 		userSelectedK = null;
-		stopPlayback();
 	});
 	$effect(() => {
 		if (batch.loading) autoPlayPending = true;
@@ -176,12 +176,20 @@
 		}, 450 / (lab.speed || 1));
 	}
 	function startPlayback() {
-		stopPlayback();
+		stopPlayback(false);
 		if (!complete || prefixes.length < 2) return;
 		playIdx = 0;
 		scheduleStep();
 	}
-	function stopPlayback() {
+	/**
+	 * `stick` keeps the selection on the point where playback ended (the
+	 * final word after a full run, or wherever the user pressed stop) instead
+	 * of snapping back to the auto-detected lurch word.
+	 */
+	function stopPlayback(stick = true) {
+		if (stick && playIdx != null && prefixes.length > 0) {
+			userSelectedK = prefixes[Math.min(playIdx, prefixes.length - 1)].k;
+		}
 		if (playTimer) clearTimeout(playTimer);
 		playTimer = null;
 		playIdx = null;
