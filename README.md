@@ -1,8 +1,10 @@
 # Embedding Playground
 
-An interactive browser playground for understanding modern text-embedding models. Everything runs locally — WebGPU first, WebAssembly as a fallback, Ollama as an optional local-daemon backend. No server, no API keys, no telemetry.
+![Embedding Playground — the Trajectory lab playing a sentence's path through latent space](embeddingpg.gif)
 
-**Live demo:** https://neovand.github.io/EmbeddingPlayground/
+An interactive 3D playground for understanding modern text-embedding models. Everything runs locally — WebGPU first, WebAssembly as a fallback, Ollama as an optional local-daemon backend. No server, no API keys, no telemetry.
+
+**Try it:** https://neovand.github.io/EmbeddingPlayground/
 
 ![status](https://github.com/NeoVand/EmbeddingPlayground/actions/workflows/deploy.yml/badge.svg)
 
@@ -13,12 +15,16 @@ One full-bleed 3D cloud — a live PCA projection of embedding vectors — with 
 | Lab | Question it answers |
 | --- | --- |
 | **Compare** | What does cosine similarity *mean*? Two texts plus reference points so the visual scale carries information. |
-| **Trajectory** | How does meaning build up across a sentence? Each prefix `word_1..k` is embedded independently; the path through latent space is drawn (and replayable), and the word that caused the biggest lurch is highlighted. |
-| **Retrieve** | Which chunks of a document semantically match a query? Four chunking strategies (sentence / paragraph / fixed / sliding), role-correct query/document prefixes, top-N ranking by cosine or euclidean, lexical-overlap highlighting as a tell. |
+| **Trajectory** | How does meaning build up across a sentence? Each prefix `word_1..k` is embedded independently, projected into one fixed PCA basis, and played back as a path — with a cinematic camera that follows each point as it appears, a speed control, and displacement bars that highlight the words that moved meaning most. |
+| **Retrieve** | Which chunks of a document semantically match a query? Four chunking strategies, role-correct query/document prefixes, top-N ranking by cosine or euclidean, lexical-overlap highlighting as a tell. |
 | **Classify** | Can you classify with no training? Nearest-prototype over class-mean embeddings, with a *visible* softmax temperature so the confidence is honest. |
 | **Cluster** | What structure falls out with no labels? K-means (k-means++ on the unit hypersphere), silhouette score, and a Rand index against ground-truth topics. |
 
-Click any point in the cloud and the **scope bar** along the bottom fills with its vitals; pull it up and the full inspector opens — per-token × dimension heatmap and signed dimension bars. Every lab ships a short **guide** (the book icon on the rail): a few steps that drive real state, not a static tour.
+Click any point and the **scope bar** along the bottom fills with its vitals; pull it up and the full inspector opens — a per-token × dimension heatmap and signed dimension bars that follow along during playback. Every lab ships a short **guide** (the book icon on the rail): a few steps that drive real state, not a static tour. A subtle **spin** toggle on the cloud slowly orbits the camera — everywhere.
+
+### Curated trajectory presets
+
+Displacement dynamics turn out to be strongly *model-dependent*, so the Trajectory lab ships paragraphs benchmarked per model tier: **roulette** (genre-per-sentence, tuned on MiniLM), **whiplash** (register fragments, tuned on Nomic), and **babel** (a babel of registers — contract, sportscast, chart notes, liturgy, obituary — tuned on Qwen3). Same text, different model, different path: that's the lesson.
 
 ## Models
 
@@ -50,7 +56,7 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173. The first model load takes a few seconds to ~30s depending on connection.
+Then open http://localhost:5173. The first model load takes a few seconds to a minute depending on connection.
 
 ## Build
 
@@ -67,8 +73,8 @@ The `main` branch deploys to GitHub Pages on every push via `.github/workflows/d
 
 - **Svelte 5** (runes) + **SvelteKit** with `adapter-static`
 - **TypeScript** strict mode
-- **@huggingface/transformers** for in-browser inference (+ optional Ollama backend)
-- **Three.js** for the 3D cloud (WebGL + CSS2DRenderer labels, incremental scene updates, animated projection transitions)
+- **@huggingface/transformers** v4 for in-browser inference (+ optional Ollama backend)
+- **Three.js** for the 3D cloud (WebGL + CSS2DRenderer labels, incremental scene updates, animated projection transitions, camera follow)
 - **@lucide/svelte** icons via a central registry
 - **vitest** for unit tests
 
