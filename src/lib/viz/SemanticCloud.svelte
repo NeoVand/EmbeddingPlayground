@@ -419,6 +419,9 @@
 		group.add(mesh);
 		group.add(marker);
 		group.userData = { pointId: p.id };
+		// Grow in from nothing — the frame loop eases scale up to 1, which is
+		// what makes trajectory playback read as points "arriving".
+		group.scale.setScalar(0.01);
 		scene.add(group);
 		const node: Node = {
 			group,
@@ -610,6 +613,9 @@
 			} else {
 				line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity }));
 			}
+			// Endpoints move every frame; skip culling instead of recomputing
+			// bounding spheres per frame.
+			line.frustumCulled = false;
 			linkGroup.add(line);
 			linkObjs.push({ line, from: link.from, to: link.to });
 		}
@@ -651,6 +657,7 @@
 			geo,
 			new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9 })
 		);
+		pathLine.frustumCulled = false;
 		scene.add(pathLine);
 	}
 
@@ -677,7 +684,6 @@
 			if (currentPos(lo.from, _tmpV)) attr.setXYZ(0, _tmpV.x, _tmpV.y, _tmpV.z);
 			if (currentPos(lo.to, _tmpV)) attr.setXYZ(1, _tmpV.x, _tmpV.y, _tmpV.z);
 			attr.needsUpdate = true;
-			lo.line.geometry.computeBoundingSphere();
 			if ((lo.line.material as THREE.LineDashedMaterial).isLineDashedMaterial) {
 				lo.line.computeLineDistances();
 			}
@@ -688,7 +694,6 @@
 				if (currentPos(pathIds[i], _tmpV)) attr.setXYZ(i, _tmpV.x, _tmpV.y, _tmpV.z);
 			}
 			attr.needsUpdate = true;
-			pathLine.geometry.computeBoundingSphere();
 		}
 	}
 
@@ -787,10 +792,14 @@
 		lastT = now;
 		controls?.update();
 
-		// Ease every node/dot toward its projection target.
+		// Ease every node/dot toward its projection target; new nodes also
+		// ease their scale up from ~0 (entrance pop).
 		const k = 1 - Math.exp(-dt * 7);
+		const kScale = 1 - Math.exp(-dt * 9);
 		for (const n of nodes.values()) {
 			n.group.position.lerp(n.target, k);
+			const s = n.group.scale.x;
+			if (s < 0.999) n.group.scale.setScalar(s + (1 - s) * kScale);
 		}
 		if (dotPoints && dotTargets.length > 0) {
 			const attr = dotPoints.geometry.attributes.position as THREE.BufferAttribute;
@@ -879,11 +888,12 @@
 		letter-spacing: 0.01em;
 		color: var(--slot-color, #e0e0e0);
 		padding: 1px 8px;
-		background: oklch(0.09 0.01 200 / 0.78);
+		/* No backdrop-filter here: with dozens of labels (long trajectories),
+		   per-label blur regions crush the compositor. A more opaque fill
+		   reads the same and costs nothing. */
+		background: oklch(0.09 0.01 200 / 0.92);
 		border: 1px solid color-mix(in oklab, var(--slot-color, #888) 55%, transparent);
 		border-radius: 6px;
-		backdrop-filter: blur(8px);
-		-webkit-backdrop-filter: blur(8px);
 		transform: translate(-50%, calc(-50% - 14px));
 		white-space: nowrap;
 		max-width: 220px;

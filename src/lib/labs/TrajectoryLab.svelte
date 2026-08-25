@@ -35,16 +35,28 @@
 		word: string;
 		text: string;
 	}
+	const words = $derived(lab.sentence.match(/\S+/g) ?? []);
+	/**
+	 * Long texts sample every Nth word instead of every word. Prefix k costs
+	 * O(k²) attention, so a 150-word paragraph means ~150 increasingly slow
+	 * forward passes plus 150 scene nodes — sampling caps the path at ~48
+	 * points while each sampled prefix still embeds the full text up to it.
+	 */
+	const MAX_STEPS = 48;
+	const stride = $derived(words.length <= MAX_STEPS ? 1 : Math.ceil(words.length / MAX_STEPS));
 	const prefixes = $derived.by<Prefix[]>(() => {
-		const words = lab.sentence.match(/\S+/g) ?? [];
-		return words.map((w, i) => ({
+		const mk = (i: number): Prefix => ({
 			k: i + 1,
-			word: w.replace(/[.,;:!?]+$/, ''),
+			word: words[i].replace(/[.,;:!?—]+$/, ''),
 			text: words.slice(0, i + 1).join(' ')
-		}));
+		});
+		const out: Prefix[] = [];
+		for (let i = 0; i < words.length; i += stride) out.push(mk(i));
+		if (words.length > 0 && (words.length - 1) % stride !== 0) out.push(mk(words.length - 1));
+		return out;
 	});
 
-	const batch = createBatchEmbed({ delay: 350, flushEvery: 1 });
+	const batch = createBatchEmbed({ delay: 350, flushEvery: 4 });
 	$effect(() => {
 		void playground.modelId;
 		batch.run(prefixes.map((p) => ({ id: `p${p.k}`, text: p.text })));
@@ -54,12 +66,33 @@
 		return batch.results.get(`p${k}`)?.vector ?? null;
 	}
 
+	/**
+	 * The cloud waits for the COMPLETE set of prefix embeddings, then projects
+	 * once and plays the path back. Progressive fill-in meant re-running PCA
+	 * and re-basing the whole projection on every arrival — wobbly and heavy.
+	 * During the embed phase the dock shows a real progress bar instead.
+	 */
+	const complete = $derived(
+		prefixes.length > 0 && !batch.loading && prefixes.every((p) => batch.results.has(`p${p.k}`))
+	);
+
 	let userSelectedK = $state<number | null>(null);
-	// Reset manual selection when the sentence changes.
+	let autoPlayPending = $state(false);
+	// Reset selection and queue an auto-play when a new batch starts.
 	$effect(() => {
 		void lab.sentence;
 		userSelectedK = null;
 		stopPlayback();
+	});
+	$effect(() => {
+		if (batch.loading) autoPlayPending = true;
+	});
+	// The payoff moment: embeddings done → project once → play the walk.
+	$effect(() => {
+		if (complete && autoPlayPending) {
+			autoPlayPending = false;
+			startPlayback();
+		}
 	});
 
 	// The "lurch" — the biggest per-step jump.
@@ -80,26 +113,27 @@
 	});
 
 	// ---------- playback ----------
-	let playK = $state<number | null>(null);
+	let playIdx = $state<number | null>(null);
 	let playTimer: ReturnType<typeof setInterval> | null = null;
-	const playing = $derived(playK != null);
+	const playing = $derived(playIdx != null);
 
 	function startPlayback() {
 		stopPlayback();
-		playK = 1;
+		if (!complete || prefixes.length < 2) return;
+		playIdx = 0;
 		playTimer = setInterval(() => {
-			if (playK == null) return;
-			if (playK >= prefixes.length) {
+			if (playIdx == null) return;
+			if (playIdx + 1 < prefixes.length) {
+				playIdx = playIdx + 1;
+			} else {
 				stopPlayback();
-				return;
 			}
-			playK = playK + 1;
-		}, 650);
+		}, 450);
 	}
 	function stopPlayback() {
 		if (playTimer) clearInterval(playTimer);
 		playTimer = null;
-		playK = null;
+		playIdx = null;
 	}
 	$effect(() => {
 		return () => {
@@ -107,32 +141,49 @@
 		};
 	});
 
-	const visibleK = $derived(playK ?? prefixes.length);
+	const visibleK = $derived(
+		playIdx != null && prefixes.length > 0
+			? prefixes[Math.min(playIdx, prefixes.length - 1)].k
+			: Number.MAX_SAFE_INTEGER
+	);
 
-	const selectedK = $derived(playK ?? userSelectedK ?? biggestJumpK);
+	const selectedK = $derived(
+		playIdx != null && prefixes.length > 0
+			? prefixes[Math.min(playIdx, prefixes.length - 1)].k
+			: (userSelectedK ?? biggestJumpK)
+	);
 	const selectedId = $derived(selectedK != null ? `p${selectedK}` : null);
 	const selectedResult = $derived.by<EmbeddingResult | null>(() =>
 		selectedK != null ? (batch.results.get(`p${selectedK}`) ?? null) : null
 	);
 	const selectedPrefix = $derived(prefixes.find((p) => p.k === selectedK) ?? null);
 
+	// On long paths, labeling every word turns into overlapping mush and 40+
+	// DOM labels — thin to ~24, always keeping endpoints, the lurch, and the
+	// selection.
+	const labelEvery = $derived(Math.max(1, Math.ceil(prefixes.length / 24)));
+
 	const points = $derived.by<CloudPoint[]>(() => {
 		const out: CloudPoint[] = [];
+		if (!complete) return out;
 		const N = prefixes.length;
-		for (const p of prefixes) {
+		const lastK = prefixes[N - 1]?.k;
+		for (let idx = 0; idx < N; idx++) {
+			const p = prefixes[idx];
 			if (p.k > visibleK) continue;
 			const v = vecOf(p.k);
 			if (!v) continue;
-			const tFrac = (p.k - 1) / Math.max(1, N - 1);
+			const tFrac = idx / Math.max(1, N - 1);
 			const hue = 220 - 190 * tFrac;
-			const isEdge = p.k === 1 || p.k === N;
+			const isEdge = p.k === 1 || p.k === lastK;
 			const isLurch = p.k === biggestJumpK;
+			const showLabel = isEdge || isLurch || p.k === selectedK || idx % labelEvery === 0;
 			out.push({
 				id: `p${p.k}`,
 				vector: v,
 				hue,
-				label: p.word,
-				hoverText: `[${p.k}] ${p.text}`,
+				label: showLabel ? p.word : undefined,
+				hoverText: `[${p.k}] …${p.text.slice(-90)}`,
 				size: isEdge || isLurch ? 1.05 : 0.8
 			});
 		}
@@ -140,7 +191,7 @@
 	});
 
 	const pathIds = $derived(
-		prefixes.filter((p) => p.k <= visibleK && vecOf(p.k)).map((p) => `p${p.k}`)
+		complete ? prefixes.filter((p) => p.k <= visibleK).map((p) => `p${p.k}`) : []
 	);
 
 	function selectPoint(id: string) {
@@ -150,6 +201,7 @@
 
 	const displacements = $derived.by(() => {
 		const out: { k: number; word: string; dist: number }[] = [];
+		if (!complete) return out;
 		for (let i = 1; i < prefixes.length; i++) {
 			const a = vecOf(prefixes[i - 1].k);
 			const b = vecOf(prefixes[i].k);
@@ -196,7 +248,7 @@
 
 <LabShell
 	labId="trajectory"
-	dockTitle="Sentence"
+	dockTitle="Trajectory"
 	resultsTitle="Displacement"
 	resultsIcon={IconDims}
 	selected={selectedResult}
@@ -215,22 +267,40 @@
 					<InfoPop title="What am I looking at?">
 						<p>Each prefix <code>word₁ … wordₖ</code> is embedded independently and projected into one shared PCA basis.</p>
 						<p>The polyline connects them in order — the sentence's <b>path</b> through embedding space.</p>
+						<p>Texts longer than {MAX_STEPS} words are sampled every few words — each sampled point still embeds the full text up to it.</p>
 					</InfoPop>
 				</span>
 				{#if batch.loading}
 					<span class="busy tabular">{batch.done}/{batch.total}</span>
 				{:else if prefixes.length > 1}
-					<span class="sum tabular">{prefixes.length} steps · Σ {totalPath.toFixed(3)}</span>
+					<span class="sum tabular">
+						{prefixes.length} steps{stride > 1 ? ` · every ${stride} words` : ''} · Σ {totalPath.toFixed(3)}
+					</span>
 				{/if}
 			</div>
 			<textarea class="fld" bind:value={lab.sentence} rows="3" spellcheck="false"
 				placeholder="Type a sentence — watch its meaning build up word by word."></textarea>
 		</div>
 
-		<button class="play-btn no-select" onclick={() => (playing ? stopPlayback() : startPlayback())}
-			disabled={prefixes.length < 2 || batch.loading}>
-			{#if playing}<IconPause size={14} /> stop{:else}<IconPlay size={14} /> play the path{/if}
-		</button>
+		{#if batch.loading}
+			<div class="embed-progress no-select">
+				<div class="ep-row">
+					<span>embedding prefixes</span>
+					<span class="tabular">{batch.done}/{batch.total}</span>
+				</div>
+				<div class="track">
+					<div class="fill" style:width={`${batch.total > 0 ? (batch.done / batch.total) * 100 : 0}%`}></div>
+				</div>
+			</div>
+		{:else}
+			<button
+				class="play-btn no-select"
+				onclick={() => (playing ? stopPlayback() : startPlayback())}
+				disabled={!complete || prefixes.length < 2}
+			>
+				{#if playing}<IconPause size={14} /> stop{:else}<IconPlay size={14} /> replay the path{/if}
+			</button>
+		{/if}
 
 		<div class="hairline"></div>
 
@@ -282,6 +352,25 @@
 <style>
 	.busy {
 		color: var(--lab);
+	}
+	.embed-progress {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 9px 12px;
+		border: 1px solid var(--border);
+		border-radius: 9px;
+		background: oklch(1 0 0 / 0.025);
+	}
+	.ep-row {
+		display: flex;
+		justify-content: space-between;
+		font-size: 11px;
+		color: var(--text-muted);
+	}
+	.ep-row .tabular {
+		color: var(--lab);
+		font-weight: 600;
 	}
 	.sum {
 		font-size: 10px;
