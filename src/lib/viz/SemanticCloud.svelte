@@ -55,10 +55,24 @@
 		links?: CloudLink[];
 		pathPoints?: string[]; // ordered ids forming a polyline
 		selectedId?: string | null;
+		/**
+		 * Cinematic follow: while set, the camera's look-at target glides to
+		 * this point's position each frame (orbit angle and zoom preserved, so
+		 * it composes with spin and user drags). Trajectory playback points it
+		 * at the newest node.
+		 */
+		focusId?: string | null;
 		onPointClick?: (id: string) => void;
 	}
 
-	let { points = [], links = [], pathPoints, selectedId = null, onPointClick }: Props = $props();
+	let {
+		points = [],
+		links = [],
+		pathPoints,
+		selectedId = null,
+		focusId = null,
+		onPointClick
+	}: Props = $props();
 
 	let container = $state<HTMLDivElement | undefined>();
 	let canvas = $state<HTMLCanvasElement | undefined>();
@@ -684,6 +698,7 @@
 
 	/** Current animated position of any point id (node or dot). */
 	const _tmpV = new THREE.Vector3();
+	const _followV = new THREE.Vector3();
 	function currentPos(id: string, out: THREE.Vector3): boolean {
 		const n = nodes.get(id);
 		if (n) {
@@ -828,6 +843,20 @@
 			const s = n.group.scale.x;
 			if (s < 0.999) n.group.scale.setScalar(s + (1 - s) * kScale);
 		}
+		// Cinematic follow — pan the view (target + camera together) toward
+		// the focused node, so each newly revealed point draws the eye without
+		// disturbing the user's orbit angle or zoom.
+		if (focusId) {
+			const fn = nodes.get(focusId);
+			if (fn && fn.group.visible) {
+				_followV.copy(fn.group.position).sub(controls.target);
+				const kf = 1 - Math.exp(-dt * 3.2);
+				_followV.multiplyScalar(kf);
+				controls.target.add(_followV);
+				camera.position.add(_followV);
+			}
+		}
+
 		if (dotPoints && dotTargets.length > 0) {
 			const attr = dotPoints.geometry.attributes.position as THREE.BufferAttribute;
 			const arr = attr.array as Float32Array;

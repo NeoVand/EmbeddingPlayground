@@ -334,7 +334,13 @@
 	{guide}
 >
 	{#snippet cloud()}
-		<SemanticCloud {points} pathPoints={pathIds} {selectedId} onPointClick={selectPoint} />
+		<SemanticCloud
+			{points}
+			pathPoints={pathIds}
+			{selectedId}
+			focusId={playing ? selectedId : null}
+			onPointClick={selectPoint}
+		/>
 	{/snippet}
 
 	{#snippet dock()}
