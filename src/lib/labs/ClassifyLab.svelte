@@ -15,6 +15,7 @@
 	import { playground } from '$lib/stores/playground.svelte.js';
 	import { PIN_HUE } from '$lib/theme/palette.js';
 	import { theme } from '$lib/theme/theme.svelte.js';
+	import DockSection from '$lib/shell/DockSection.svelte';
 	import InfoPop from '$lib/shell/InfoPop.svelte';
 	import LabShell from '$lib/shell/LabShell.svelte';
 	import SemanticCloud, { type CloudLink, type CloudPoint } from '$lib/viz/SemanticCloud.svelte';
@@ -166,6 +167,15 @@
 		}));
 	});
 
+	// Per-class counts for the always-visible summary chips.
+	const classSummary = $derived.by(() =>
+		datasetClasses.map((cls, i) => ({
+			label: cls,
+			hue: labelHue(cls, i),
+			count: lab.examples.filter((e) => e.label === cls).length
+		}))
+	);
+
 	function addExample() {
 		const defaultLabel = datasetClasses[0] ?? 'class';
 		lab.examples = [...lab.examples, { id: `ex_${Date.now()}`, text: '', label: defaultLabel }];
@@ -262,41 +272,47 @@
 
 		<div class="hairline"></div>
 
-		<div class="fld-label">
-			<span>Examples
-				<InfoPop title="Prototypes">
-					<p>All examples with the same label are averaged into one <b>prototype</b> vector (then re-normalized).</p>
-					<p>Edit, relabel or delete examples and watch the prototypes move in the cloud.</p>
-				</InfoPop>
-			</span>
-			<span class="count tabular">
-				{#if exBatch.loading}{exBatch.done}/{exBatch.total}{:else}{lab.examples.length} · {datasetClasses.length} classes{/if}
-			</span>
-			<button class="icon-btn" onclick={addExample} aria-label="Add an example"><IconAdd size={14} /></button>
-		</div>
-		<ul class="ex-list">
-			{#each lab.examples as ex (ex.id)}
-				{@const classIdx = datasetClasses.indexOf(ex.label)}
-				<li class="item-row" style:--c={theme.hueCss(labelHue(ex.label, classIdx))}>
-					<input
-						class="fld"
-						value={ex.text}
-						oninput={(e) => setExampleText(ex.id, (e.target as HTMLInputElement).value)}
-						placeholder="example text…"
-					/>
-					<input
-						class="fld label-fld"
-						value={ex.label}
-						oninput={(e) => setExampleLabel(ex.id, (e.target as HTMLInputElement).value)}
-						title="class label"
-						style:color="var(--c)"
-					/>
-					<button class="icon-btn danger" onclick={() => removeExample(ex.id)} aria-label="Remove">
-						<IconRemove size={13} />
-					</button>
-				</li>
+		<div class="class-chips no-select">
+			{#each classSummary as c (c.label)}
+				<span class="hue-badge" style:--c={theme.hueCss(c.hue)}>{c.label} · {c.count}</span>
 			{/each}
-		</ul>
+			<InfoPop title="Prototypes">
+				<p>All examples with the same label are averaged into one <b>prototype</b> vector (then re-normalized).</p>
+				<p>Edit, relabel or delete examples and watch the prototypes move in the cloud.</p>
+			</InfoPop>
+		</div>
+
+		<DockSection
+			label="Edit examples"
+			count={exBatch.loading ? `${exBatch.done}/${exBatch.total}` : `${lab.examples.length}`}
+		>
+			{#snippet extra()}
+				<button class="icon-btn" onclick={addExample} aria-label="Add an example"><IconAdd size={14} /></button>
+			{/snippet}
+			<ul class="ex-list">
+				{#each lab.examples as ex (ex.id)}
+					{@const classIdx = datasetClasses.indexOf(ex.label)}
+					<li class="item-row" style:--c={theme.hueCss(labelHue(ex.label, classIdx))}>
+						<input
+							class="fld"
+							value={ex.text}
+							oninput={(e) => setExampleText(ex.id, (e.target as HTMLInputElement).value)}
+							placeholder="example text…"
+						/>
+						<input
+							class="fld label-fld"
+							value={ex.label}
+							oninput={(e) => setExampleLabel(ex.id, (e.target as HTMLInputElement).value)}
+							title="class label"
+							style:color="var(--c)"
+						/>
+						<button class="icon-btn danger" onclick={() => removeExample(ex.id)} aria-label="Remove">
+							<IconRemove size={13} />
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</DockSection>
 	{/snippet}
 
 	{#snippet results()}
@@ -374,6 +390,12 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.class-chips {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 5px;
 	}
 	.err {
 		font-size: 11px;

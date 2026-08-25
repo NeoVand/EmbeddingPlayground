@@ -12,6 +12,7 @@
 	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { playground } from '$lib/stores/playground.svelte.js';
 	import { theme } from '$lib/theme/theme.svelte.js';
+	import DockSection from '$lib/shell/DockSection.svelte';
 	import InfoPop from '$lib/shell/InfoPop.svelte';
 	import LabShell from '$lib/shell/LabShell.svelte';
 	import SemanticCloud, { type CloudPoint } from '$lib/viz/SemanticCloud.svelte';
@@ -259,28 +260,29 @@
 
 		<div class="hairline"></div>
 
-		<div class="fld-label">
-			<span>Sentences</span>
-			<span class="count tabular">
-				{#if batch.loading}{batch.done}/{batch.total}{:else}{lab.sentences.length}{/if}
-			</span>
-			<button class="icon-btn" onclick={addSentence} aria-label="Add a sentence"><IconAdd size={14} /></button>
-		</div>
-		<ul class="sent-list">
-			{#each lab.sentences as s (s.id)}
-				<li class="item-row">
-					<input
-						class="fld"
-						value={s.text}
-						oninput={(e) => setSentenceText(s.id, (e.target as HTMLInputElement).value)}
-						placeholder="a sentence to cluster…"
-					/>
-					<button class="icon-btn danger" onclick={() => removeSentence(s.id)} aria-label="Remove">
-						<IconRemove size={13} />
-					</button>
-				</li>
-			{/each}
-		</ul>
+		<DockSection
+			label="Edit sentences"
+			count={batch.loading ? `${batch.done}/${batch.total}` : `${lab.sentences.length}`}
+		>
+			{#snippet extra()}
+				<button class="icon-btn" onclick={addSentence} aria-label="Add a sentence"><IconAdd size={14} /></button>
+			{/snippet}
+			<ul class="sent-list">
+				{#each lab.sentences as s (s.id)}
+					<li class="item-row">
+						<input
+							class="fld"
+							value={s.text}
+							oninput={(e) => setSentenceText(s.id, (e.target as HTMLInputElement).value)}
+							placeholder="a sentence to cluster…"
+						/>
+						<button class="icon-btn danger" onclick={() => removeSentence(s.id)} aria-label="Remove">
+							<IconRemove size={13} />
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</DockSection>
 	{/snippet}
 
 	{#snippet results()}

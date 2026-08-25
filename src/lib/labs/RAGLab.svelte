@@ -13,6 +13,7 @@
 	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { playground } from '$lib/stores/playground.svelte.js';
 	import { PIN_HUE } from '$lib/theme/palette.js';
+	import DockSection from '$lib/shell/DockSection.svelte';
 	import InfoPop from '$lib/shell/InfoPop.svelte';
 	import LabShell from '$lib/shell/LabShell.svelte';
 	import SemanticCloud, { type CloudLink, type CloudPoint } from '$lib/viz/SemanticCloud.svelte';
@@ -267,19 +268,20 @@
 
 		<div class="hairline"></div>
 
-		<div class="fld-label"><span>Chunks</span></div>
-		<ol class="chunk-list">
-			{#each chunks as c, i (c.id)}
-				{@const rank = topRanked.findIndex((r) => r.chunk.id === c.id)}
-				<li class:top={rank >= 0} class:sel={selectedChunkId === c.id}>
-					<button class="chunk" onclick={() => (selectedChunkId = c.id)}>
-						<span class="chunk-num tabular">#{i + 1}</span>
-						{#if rank >= 0}<span class="chunk-rank tabular">match {rank + 1}</span>{/if}
-						<span class="chunk-text">{c.text}</span>
-					</button>
-				</li>
-			{/each}
-		</ol>
+		<DockSection label="Chunk texts" count={`${chunks.length}`}>
+			<ol class="chunk-list">
+				{#each chunks as c, i (c.id)}
+					{@const rank = topRanked.findIndex((r) => r.chunk.id === c.id)}
+					<li class:top={rank >= 0} class:sel={selectedChunkId === c.id}>
+						<button class="chunk" onclick={() => (selectedChunkId = c.id)}>
+							<span class="chunk-num tabular">#{i + 1}</span>
+							{#if rank >= 0}<span class="chunk-rank tabular">match {rank + 1}</span>{/if}
+							<span class="chunk-text">{c.text}</span>
+						</button>
+					</li>
+				{/each}
+			</ol>
+		</DockSection>
 	{/snippet}
 
 	{#snippet results()}

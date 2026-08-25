@@ -234,11 +234,15 @@
 		<div class="hairline"></div>
 
 		<div class="fld-label"><span>Curated sentences</span></div>
-		<div class="preset-grid">
+		<div class="chips">
 			{#each presets as p (p.label)}
-				<button class="preset" onclick={() => (lab.sentence = p.sentence)} title={p.note}>
-					<span class="p-label">{p.label}</span>
-					<span class="p-snippet">{p.sentence}</span>
+				<button
+					class="chip-btn"
+					class:on={lab.sentence === p.sentence}
+					onclick={() => (lab.sentence = p.sentence)}
+					title={`${p.sentence} — ${p.note}`}
+				>
+					{p.label}
 				</button>
 			{/each}
 		</div>
@@ -306,45 +310,10 @@
 		opacity: 0.4;
 		cursor: default;
 	}
-	.preset-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 5px;
-	}
-	.preset {
-		background: oklch(1 0 0 / 0.035);
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 7px 9px;
-		cursor: pointer;
+	.chips {
 		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		text-align: left;
-		transition: border-color 0.15s ease;
-	}
-	.preset:hover {
-		border-color: color-mix(in oklab, var(--lab) 55%, transparent);
-	}
-	.p-label {
-		font-size: 9.5px;
-		font-weight: 650;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--text-muted);
-	}
-	.preset:hover .p-label {
-		color: var(--lab);
-	}
-	.p-snippet {
-		font-size: 10.5px;
-		color: var(--text-secondary);
-		line-height: 1.35;
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
+		flex-wrap: wrap;
+		gap: 5px;
 	}
 	ol.disps {
 		list-style: none;

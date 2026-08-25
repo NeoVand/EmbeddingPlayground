@@ -252,7 +252,9 @@ textarea.fld {
 	flex-shrink: 0;
 }
 
-/* One editable row in a list (reference texts, examples, sentences). */
+/* One editable row in a list (reference texts, examples, sentences).
+   Rows are quiet by default — no boxed-input chrome until you interact —
+   so a long list reads as text, not as a form. */
 .item-row {
 	display: flex;
 	align-items: center;
@@ -261,8 +263,26 @@ textarea.fld {
 }
 .item-row .fld {
 	flex: 1;
-	padding: 5px 8px;
+	padding: 4px 7px;
 	font-size: 12px;
+	background: transparent;
+	border-color: transparent;
+}
+.item-row:hover .fld {
+	border-color: var(--border);
+}
+.item-row .fld:focus {
+	background: oklch(1 0 0 / 0.04);
+	border-color: color-mix(in oklab, var(--lab) 55%, transparent);
+}
+.item-row .icon-btn {
+	opacity: 0;
+	width: 22px;
+	height: 22px;
+}
+.item-row:hover .icon-btn,
+.item-row .icon-btn:focus-visible {
+	opacity: 1;
 }
 
 /* Muted helper line. */

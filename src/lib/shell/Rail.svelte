@@ -20,14 +20,16 @@
 </script>
 
 <nav class="rail glass" aria-label="Labs">
-	<div class="mark no-select" title="Embedding Playground">
-		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-			<circle cx="12" cy="12" r="2.6" />
-			<circle cx="5" cy="6.5" r="1.5" />
-			<circle cx="19.5" cy="5.5" r="1.5" />
-			<circle cx="18.5" cy="18.5" r="1.5" />
-			<circle cx="5.5" cy="18" r="1.5" />
-			<path d="M6.4 7.5 L10 10.4 M18.2 6.4 L14.2 10 M17.3 17.5 L14 13.9 M6.9 17 L10.1 13.7" opacity="0.5" />
+	<!-- The mark: the app's own data cube with two points inside. Plain glyph,
+	     no fill or border, so it never reads as a pressed button. -->
+	<div class="mark no-select" title="Embedding Playground" aria-hidden="true">
+		<svg viewBox="0 0 24 24" fill="none">
+			<g stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" opacity="0.55">
+				<path d="M12 2.6 L20.2 7.3 V16.7 L12 21.4 L3.8 16.7 V7.3 Z" />
+				<path d="M3.8 7.3 L12 12 L20.2 7.3 M12 12 V21.4" />
+			</g>
+			<circle cx="9.2" cy="9.1" r="1.7" fill="var(--accent)" />
+			<circle cx="15.4" cy="15.6" r="1.4" fill="var(--contrast)" opacity="0.9" />
 		</svg>
 	</div>
 
@@ -93,20 +95,17 @@
 		gap: 6px;
 	}
 	.mark {
-		width: 34px;
-		height: 34px;
-		border-radius: 10px;
+		width: 38px;
+		height: 38px;
 		display: grid;
 		place-items: center;
-		color: var(--accent);
-		background: color-mix(in oklab, var(--accent) 12%, transparent);
-		border: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
+		color: var(--text-muted);
 		margin-bottom: 10px;
 		flex-shrink: 0;
 	}
 	.mark svg {
-		width: 20px;
-		height: 20px;
+		width: 24px;
+		height: 24px;
 	}
 	.labs {
 		display: flex;
@@ -136,25 +135,14 @@
 		color: var(--text-secondary);
 	}
 	.lab-btn.active {
-		background: color-mix(in oklab, var(--c, var(--accent)) 14%, transparent);
+		background: color-mix(in oklab, var(--c, var(--accent)) 15%, transparent);
 		color: var(--c, var(--accent));
-	}
-	.lab-btn.active::before {
-		content: '';
-		position: absolute;
-		left: -8px;
-		top: 9px;
-		bottom: 9px;
-		width: 3px;
-		border-radius: 2px;
-		background: var(--c, var(--accent));
+		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c, var(--accent)) 30%, transparent);
 	}
 	.guide-btn.active {
-		background: color-mix(in oklab, var(--accent) 14%, transparent);
+		background: color-mix(in oklab, var(--accent) 15%, transparent);
 		color: var(--accent);
-	}
-	.guide-btn.active::before {
-		background: var(--accent);
+		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent);
 	}
 	.spacer {
 		flex: 1;
