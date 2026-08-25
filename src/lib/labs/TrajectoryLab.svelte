@@ -7,6 +7,7 @@
 	 * The play button replays the path word by word.
 	 */
 
+	import { tick } from 'svelte';
 	import { IconDims, IconPause, IconPlay } from '$lib/icons.js';
 	import { cosine } from '$lib/math/similarity.js';
 	import type { EmbeddingResult } from '$lib/models/types.js';
@@ -207,6 +208,20 @@
 		if (m) userSelectedK = Number(m[1]);
 	}
 
+	// During playback, keep the highlighted displacement row centered in the
+	// dock so the list scrolls along with the walk. tick() (not rAF) so it
+	// still fires when the tab is backgrounded.
+	let dispList = $state<HTMLOListElement | undefined>();
+	$effect(() => {
+		void selectedK;
+		if (!playing || !dispList) return;
+		void tick().then(() => {
+			dispList
+				?.querySelector('li.sel')
+				?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+		});
+	});
+
 	const displacements = $derived.by(() => {
 		const out: { k: number; word: string; dist: number }[] = [];
 		if (!complete) return out;
@@ -347,7 +362,7 @@
 				{#if batch.loading}Embedding prefixes…{:else}Type a sentence with at least two words.{/if}
 			</p>
 		{:else}
-			<ol class="disps">
+			<ol class="disps" bind:this={dispList}>
 				{#each displacements as d (d.k)}
 					<li class:sel={d.k === selectedK}>
 						<button class="disp-row" onclick={() => (userSelectedK = d.k)}>

@@ -40,12 +40,13 @@
 		const n = r.tokens.length;
 		if (n === lastTokenCount) return;
 		lastTokenCount = n;
-		requestAnimationFrame(() => {
+		// setTimeout (not rAF) so following still works in backgrounded tabs.
+		setTimeout(() => {
 			if (!container) return;
 			if (container.scrollHeight > container.clientHeight + 4) {
 				container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
 			}
-		});
+		}, 0);
 	}
 
 	$effect(() => {
