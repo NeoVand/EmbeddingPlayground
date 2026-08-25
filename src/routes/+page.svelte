@@ -1,53 +1,28 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 	import { playground } from '$lib/stores/playground.svelte.js';
-	import ModelSelector from '$lib/components/ModelSelector.svelte';
-	import BackendBadge from '$lib/components/BackendBadge.svelte';
-	import TabBar from '$lib/components/TabBar.svelte';
-	import ProgressBar from '$lib/components/ProgressBar.svelte';
+	import BusyPill from '$lib/shell/BusyPill.svelte';
+	import ModelManager from '$lib/shell/ModelManager.svelte';
+	import Rail from '$lib/shell/Rail.svelte';
 	import CompareLab from '$lib/labs/CompareLab.svelte';
 	import TrajectoryLab from '$lib/labs/TrajectoryLab.svelte';
 	import RAGLab from '$lib/labs/RAGLab.svelte';
 	import ClassifyLab from '$lib/labs/ClassifyLab.svelte';
 	import ClusterLab from '$lib/labs/ClusterLab.svelte';
-	import { startTour } from '$lib/tour.js';
 
-	onMount(async () => {
+	onMount(() => {
 		void playground.probeBackends();
-		await tick();
-		// Don't auto-open the tour on first visit. Users start in Compare with a
-		// loaded preset; the lab descriptions on the tab bar are self-explanatory.
-		// The ? button opens the tour on demand.
 	});
-
-	function showHelp() {
-		startTour({ force: true });
-	}
 </script>
 
-<div class="app grid-bg">
-	<header>
-		<div class="brand no-select">
-			<span class="hex" aria-hidden="true">⬡</span>
-			<h1>EMBEDDING <span class="dim">PLAYGROUND</span></h1>
-		</div>
-		<div class="middle" data-tour="tabs">
-			<TabBar />
-		</div>
-		<div class="right">
-			<div data-tour="model">
-				<ModelSelector />
-			</div>
-			<BackendBadge />
-			<button class="help no-select" onclick={showHelp} title="Replay the intro tour" data-tour="help"
-				>?</button
-			>
-		</div>
-	</header>
+<svelte:head>
+	<title>Embedding Playground</title>
+</svelte:head>
 
-	<ProgressBar />
+<div class="app">
+	<Rail />
 
-	<div class="lab-host" data-tour="cloud">
+	<main class="lab-host">
 		{#if playground.lab === 'compare'}
 			<CompareLab />
 		{:else if playground.lab === 'trajectory'}
@@ -59,74 +34,22 @@
 		{:else if playground.lab === 'cluster'}
 			<ClusterLab />
 		{/if}
-	</div>
+	</main>
+
+	<BusyPill />
+	<ModelManager />
 </div>
 
 <style>
 	.app {
 		position: fixed;
 		inset: 0;
-		display: grid;
-		grid-template-rows: auto auto 1fr;
-		gap: 8px;
-		padding: 12px;
-		box-sizing: border-box;
-	}
-	header {
-		display: grid;
-		grid-template-columns: auto 1fr auto;
-		align-items: center;
-		gap: 16px;
-	}
-	.brand {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-	}
-	.hex {
-		font-size: 22px;
-		color: var(--accent);
-		text-shadow: 0 0 10px var(--accent-glow);
-	}
-	h1 {
-		font-size: 13px;
-		letter-spacing: 0.22em;
-		font-weight: 700;
-		color: var(--text-primary);
-		margin: 0;
-	}
-	h1 .dim {
-		color: var(--text-muted);
-		font-weight: 500;
-	}
-	.middle {
-		display: flex;
-		justify-content: center;
-	}
-	.right {
-		display: flex;
-		align-items: center;
-		gap: 14px;
-	}
-	.help {
-		width: 30px;
-		height: 30px;
-		background: var(--surface-1);
-		border: 1px solid var(--border);
-		color: var(--text-secondary);
-		font-weight: 700;
-		font-size: 13px;
-		border-radius: 6px;
-		cursor: pointer;
-	}
-	.help:hover {
-		border-color: var(--accent);
-		color: var(--accent);
+		background:
+			radial-gradient(1100px 600px at 70% -10%, oklch(0.12 0.02 200 / 0.5), transparent 65%),
+			var(--bg-base);
 	}
 	.lab-host {
-		min-height: 0;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
+		position: absolute;
+		inset: 0;
 	}
 </style>

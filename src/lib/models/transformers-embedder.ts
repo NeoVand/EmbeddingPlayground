@@ -15,7 +15,15 @@ import {
 	type FeatureExtractionPipeline
 } from '@huggingface/transformers';
 import { l2NormalizeInPlace } from '../math/stats.ts';
-import type { Embedder, EmbeddingResult, LoadProgress, ModelInfo, Token } from './types.ts';
+import type {
+	EmbedOptions,
+	EmbedRole,
+	Embedder,
+	EmbeddingResult,
+	LoadProgress,
+	ModelInfo,
+	Token
+} from './types.ts';
 
 // HF is the source of truth — never look for models on the local filesystem.
 env.allowLocalModels = false;
@@ -101,17 +109,20 @@ export class TransformersEmbedder implements Embedder {
 		}
 	}
 
-	embed(text: string): Promise<EmbeddingResult> {
+	embed(text: string, opts: EmbedOptions = {}): Promise<EmbeddingResult> {
 		// Chain through the serialization queue so we never run two inferences
 		// against the same pipeline at once.
-		const next = this.queue.then(() => this.embedInternal(text));
+		const next = this.queue.then(() => this.embedInternal(text, opts.role ?? 'document'));
 		this.queue = next.catch(() => undefined);
 		return next;
 	}
 
-	private async embedInternal(text: string): Promise<EmbeddingResult> {
+	private async embedInternal(text: string, role: EmbedRole): Promise<EmbeddingResult> {
 		const t0 = performance.now();
-		const prefixTemplate = this.model.prefixes?.document ?? this.model.prefixes?.query;
+		// Role-correct prefixing. A model with only a query template (Arctic,
+		// Qwen3) leaves documents raw by design — never borrow the other role's
+		// template.
+		const prefixTemplate = this.model.prefixes?.[role];
 		const input = prefixTemplate ? prefixTemplate.replace('{text}', text) : text;
 
 		// AutoModel path: the model already returns the pooled sentence vector

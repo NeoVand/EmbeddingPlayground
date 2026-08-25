@@ -151,3 +151,63 @@ export function sequentialRgb(t: number, p: Primitives): [number, number, number
 	const c = p.accentChroma * (0.4 + 0.6 * tt);
 	return oklchToRgb(l, c, p.accentHue);
 }
+
+// ---------- Lab identity hues ----------
+// Every lab owns a hue. Rail icon, dock accents, and default cloud points all
+// agree on it, and all of them run the hue through the same lightness/chroma
+// curve below so the five labs read as one family.
+
+export const LAB_HUES = {
+	compare: 200, // teal — the app's own accent
+	trajectory: 285, // violet
+	rag: 85, // gold — matches the pinned-query marker
+	classify: 150, // green
+	cluster: 30 // warm red
+} as const;
+
+/** The hue used for pinned "query" points (RAG / Classify) and their links. */
+export const PIN_HUE = 85;
+
+/** Bright point color for labeled spheres and UI chips carrying a data hue. */
+export function pointRgb(hue: number, p: Primitives): [number, number, number] {
+	return oklchToRgb(0.78, p.accentChroma * 1.1, hue);
+}
+
+/** Dimmer color for background dots. */
+export function dotRgb(hue: number, p: Primitives): [number, number, number] {
+	return oklchToRgb(0.6, p.accentChroma * 0.55, hue);
+}
+
+/** CSS color string for a data hue — the one way UI chips derive hue colors. */
+export function hueCss(hue: number, p: Primitives, opts: { l?: number; c?: number; a?: number } = {}): string {
+	return oklch(opts.l ?? 0.78, opts.c ?? p.accentChroma, hue, opts.a ?? 1);
+}
+
+/**
+ * Scene furniture colors for the 3D cloud, derived from the primitives so a
+ * theme change propagates into Three.js. All triplets in [0,1] sRGB.
+ */
+export interface SceneColors {
+	grid: [number, number, number];
+	gridCenter: [number, number, number];
+	cube: [number, number, number];
+	axisX: [number, number, number];
+	axisY: [number, number, number];
+	axisZ: [number, number, number];
+	linkDefault: [number, number, number];
+	fillLight: [number, number, number];
+}
+
+export function deriveSceneColors(p: Primitives): SceneColors {
+	const h = p.accentHue;
+	return {
+		grid: oklchToRgb(p.bgL + 0.14, 0.012, h),
+		gridCenter: oklchToRgb(p.bgL + 0.07, 0.01, h),
+		cube: oklchToRgb(p.bgL + 0.25, 0.02, h),
+		axisX: oklchToRgb(0.62, 0.1, p.contrastHue),
+		axisY: oklchToRgb(0.68, 0.1, 150),
+		axisZ: oklchToRgb(0.62, 0.1, h + 60),
+		linkDefault: oklchToRgb(0.72, 0.015, h),
+		fillLight: oklchToRgb(0.6, 0.08, h + 60)
+	};
+}

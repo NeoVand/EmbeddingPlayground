@@ -1,15 +1,20 @@
 <script lang="ts">
+	/**
+	 * token × dimension canvas heatmap. Chrome-free — the inspector drawer
+	 * provides the panel; this fills whatever box it's given and redraws on
+	 * resize and theme change.
+	 */
+
 	import type { EmbeddingResult } from '$lib/models/types.js';
 	import { theme } from '$lib/theme/theme.svelte.js';
 	import { divergingRgb } from '$lib/theme/palette.js';
 	import { absMax } from '$lib/math/stats.js';
+	import { onMount } from 'svelte';
 
 	interface Props {
 		result: EmbeddingResult | null;
-		onRefresh?: () => void;
-		emptyText?: string;
 	}
-	let { result: r, onRefresh, emptyText = 'Awaiting input.' }: Props = $props();
+	let { result: r }: Props = $props();
 
 	let canvas = $state<HTMLCanvasElement | undefined>();
 	let container = $state<HTMLDivElement | undefined>();
@@ -20,14 +25,21 @@
 	let cellW = $state(0);
 	let offsetX = $state(0);
 
+	onMount(() => {
+		const ro = new ResizeObserver(() => draw());
+		if (container) ro.observe(container);
+		return () => ro.disconnect();
+	});
+
 	$effect(() => {
-		if (!canvas || !r || !r.tokens || !r.tokenVectors) return;
+		void r;
 		void theme.tokens;
 		draw();
 	});
 
 	function draw() {
-		if (!r?.tokens || !r?.tokenVectors || !canvas || !container) return;
+		if (!canvas || !container) return;
+		if (!r?.tokens || !r?.tokenVectors) return;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
 		const dpr = window.devicePixelRatio || 1;
@@ -37,10 +49,14 @@
 		const data = r.tokenVectors;
 
 		const cssW = container.clientWidth;
+		const availH = container.clientHeight;
+		if (cssW < 40 || availH < 40) return;
 		const labelW = 92;
-		const matW = Math.max(80, cssW - labelW - 8);
-		const cssH = Math.max(120, Math.min(420, tokens.length * 16));
-		const rowH = cssH / tokens.length;
+		const matW = Math.max(80, cssW - labelW - 4);
+		// Rows fit the available height when possible; floor at 9px/row and let
+		// the wrap scroll for very long token sequences.
+		const rowH = Math.min(18, Math.max(9, availH / tokens.length));
+		const cssH = rowH * tokens.length;
 
 		canvas.style.width = cssW + 'px';
 		canvas.style.height = cssH + 'px';
@@ -62,35 +78,19 @@
 				const v = data[base + d] / max;
 				const [r0, g0, b0] = divergingRgb(v, theme.primitives);
 				ctx.fillStyle = `rgb(${(r0 * 255) | 0},${(g0 * 255) | 0},${(b0 * 255) | 0})`;
-				ctx.fillRect(labelW + d * cellW, y, Math.max(1, cellW + 0.5), rowH);
+				ctx.fillRect(labelW + d * cellW, y + 0.5, Math.max(1, cellW + 0.5), rowH - 1);
 			}
 		}
 
-		ctx.fillStyle = getCss('--text-secondary');
-		ctx.font = '11px Inter, sans-serif';
+		ctx.font = '10.5px Inter, sans-serif';
 		ctx.textBaseline = 'middle';
 		ctx.textAlign = 'right';
 		for (let i = 0; i < tokens.length; i++) {
 			const y = i * rowH + rowH / 2;
 			const t = tokens[i];
-			const label = displayToken(t.text);
-			ctx.fillStyle = t.isSpecial ? getCss('--text-subtle') : getCss('--text-secondary');
-			ctx.fillText(label, labelW - 6, y);
+			ctx.fillStyle = t.isSpecial ? theme.tokens.textSubtle : theme.tokens.textSecondary;
+			ctx.fillText(displayToken(t.text), labelW - 8, y);
 		}
-
-		ctx.strokeStyle = getCss('--border');
-		ctx.lineWidth = 0.5;
-		for (let i = 1; i < tokens.length; i++) {
-			const y = i * rowH;
-			ctx.beginPath();
-			ctx.moveTo(labelW, y);
-			ctx.lineTo(cssW, y);
-			ctx.stroke();
-		}
-	}
-
-	function getCss(varName: string): string {
-		return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || '#999';
 	}
 
 	function displayToken(s: string): string {
@@ -115,14 +115,10 @@
 		}
 		hover = { token: t, dim: d, value: r.tokenVectors[t * r.dim + d] };
 	}
-
-	function onleave() {
-		hover = null;
-	}
 </script>
 
-<div class="card glass" bind:this={container}>
-	<div class="head">
+<div class="pane">
+	<div class="head no-select">
 		<span class="eyebrow">Token × Dimension</span>
 		{#if hover && r?.tokens}
 			<span class="hover tabular">
@@ -130,7 +126,7 @@
 				<span class="sep">·</span>
 				<span class="d">d{hover.dim}</span>
 				<span class="sep">·</span>
-				<span class="v" style:color={hover.value < 0 ? 'var(--accent)' : 'var(--contrast)'}>
+				<span style:color={hover.value < 0 ? 'var(--accent)' : 'var(--contrast)'}>
 					{hover.value > 0 ? '+' : ''}{hover.value.toFixed(4)}
 				</span>
 			</span>
@@ -138,42 +134,39 @@
 			<span class="meta tabular">{r.tokens.length} tokens × {r.dim} dims</span>
 		{/if}
 	</div>
-	{#if hasTokens}
-		<div class="canvas-wrap">
-			<canvas bind:this={canvas} onmousemove={onmove} onmouseleave={onleave}></canvas>
-		</div>
-	{:else if r && onRefresh}
-		<p class="empty">
-			Cached embedding — token-level vectors weren't kept.
-			<button class="refresh" onclick={onRefresh}>refresh</button>
-		</p>
-	{:else if r}
-		<p class="empty">Per-token vectors not exposed by this backend.</p>
-	{:else}
-		<p class="empty">{emptyText}</p>
-	{/if}
+	<div class="canvas-wrap" bind:this={container}>
+		{#if hasTokens}
+			<canvas bind:this={canvas} onmousemove={onmove} onmouseleave={() => (hover = null)}></canvas>
+		{:else if r}
+			<p class="empty-note">Per-token vectors aren't exposed by this backend — the pooled vector on the right is still live.</p>
+		{:else}
+			<p class="empty-note">Nothing selected.</p>
+		{/if}
+	</div>
 </div>
 
 <style>
-	.card {
-		padding: 10px 12px;
+	.pane {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 6px;
 		min-height: 0;
+		min-width: 0;
+		height: 100%;
 	}
 	.head {
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
 		gap: 8px;
+		flex-shrink: 0;
 	}
-	.meta {
+	.meta,
+	.hover {
 		font-size: 10px;
 		color: var(--text-subtle);
 	}
 	.hover {
-		font-size: 10px;
 		display: flex;
 		align-items: center;
 		gap: 4px;
@@ -185,35 +178,13 @@
 	.hover .d {
 		color: var(--text-muted);
 	}
-	.hover .sep {
-		color: var(--text-subtle);
-	}
 	.canvas-wrap {
 		flex: 1;
 		min-height: 0;
-		overflow: auto;
+		overflow-y: auto;
+		overflow-x: hidden;
 	}
 	canvas {
 		display: block;
-	}
-	.empty {
-		font-size: 12px;
-		color: var(--text-subtle);
-		font-style: italic;
-	}
-	.refresh {
-		display: inline-block;
-		margin-left: 6px;
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: 3px;
-		color: var(--text-secondary);
-		font-size: 10px;
-		padding: 2px 6px;
-		cursor: pointer;
-	}
-	.refresh:hover {
-		border-color: var(--accent);
-		color: var(--accent);
 	}
 </style>

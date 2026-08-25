@@ -1,34 +1,41 @@
 # Embedding Playground
 
-An interactive browser playground for poking at modern text-embedding models. Everything runs locally — WebGPU first, WebAssembly as a fallback. No server, no API keys, no telemetry.
+An interactive browser playground for understanding modern text-embedding models. Everything runs locally — WebGPU first, WebAssembly as a fallback, Ollama as an optional local-daemon backend. No server, no API keys, no telemetry.
 
 **Live demo:** https://neovand.github.io/EmbeddingPlayground/
 
 ![status](https://github.com/NeoVand/EmbeddingPlayground/actions/workflows/deploy.yml/badge.svg)
 
-## What it does
+## The idea
 
-Five focused labs, each one teaches a different aspect of how text embeddings behave:
+One full-bleed 3D cloud — a live PCA projection of embedding vectors — with everything else floating on top of it as glass panels. An icon rail on the left switches between five labs, a curriculum that reads top to bottom: *meaning → sequence → retrieval → decision → structure*.
 
 | Lab | Question it answers |
 | --- | --- |
 | **Compare** | What does cosine similarity *mean*? Two texts plus reference points so the visual scale carries information. |
-| **Trajectory** | How does meaning build up across a sentence? Embed each prefix `word_1..k`, render the path through latent space, surface the word that caused each lurch. |
-| **RAG** | Which chunks of a document semantically match a query? Pre-loaded docs, four chunking strategies (sentence / paragraph / fixed / sliding), top-N re-ranking by cosine or euclidean. |
-| **Analogies** | Does `king − man + woman ≈ queen` work on sentence transformers? (Spoiler: only sort of — see the caveat in the lab.) |
-| **Plane** | What does a single direction in embedding space encode? Pick two anchor texts, project everything onto their axis. Sentiment, formality, concreteness presets included. |
+| **Trajectory** | How does meaning build up across a sentence? Each prefix `word_1..k` is embedded independently; the path through latent space is drawn (and replayable), and the word that caused the biggest lurch is highlighted. |
+| **Retrieve** | Which chunks of a document semantically match a query? Four chunking strategies (sentence / paragraph / fixed / sliding), role-correct query/document prefixes, top-N ranking by cosine or euclidean, lexical-overlap highlighting as a tell. |
+| **Classify** | Can you classify with no training? Nearest-prototype over class-mean embeddings, with a *visible* softmax temperature so the confidence is honest. |
+| **Cluster** | What structure falls out with no labels? K-means (k-means++ on the unit hypersphere), silhouette score, and a Rand index against ground-truth topics. |
 
-All five labs share a 3D PCA cloud rendered with Three.js (WebGL + CSS2DRenderer for crisp HTML labels), a vector cache that survives reloads, and a model selector.
+Click any point in the cloud and the **scope bar** along the bottom fills with its vitals; pull it up and the full inspector opens — per-token × dimension heatmap and signed dimension bars. Every lab ships a short **guide** (the book icon on the rail): a few steps that drive real state, not a static tour.
 
 ## Models
 
-Currently in the registry, all running in the browser:
+Eight models in the registry, all running in the browser via `@huggingface/transformers`, managed from the model panel (the chip on the rail — download states, backend badges, live progress):
 
-- **all-MiniLM-L6-v2** — 22M params, 384-d, mean pooled. The classic baseline.
-- **nomic-embed-text-v1.5** — 137M, 768-d, Matryoshka-trained (truncate to 512 / 256 / 128 / 64).
-- **Qwen3-Embedding-0.6B** — 596M, 1024-d, last-token pooled. Top of MTEB for its size.
+| Model | Params | Dims | Pooling | Notes |
+| --- | --- | --- | --- | --- |
+| mxbai-embed-xsmall-v1 | 24M | 384 | mean | instant-load tier |
+| all-MiniLM-L6-v2 | 22M | 384 | mean | the classic baseline (default) |
+| granite-embedding-small-english-r2 | 47M | 384 | mean | ModernBERT, 8k context (WASM) |
+| nomic-embed-text-v1.5 | 137M | 768 | mean | Matryoshka-trained, query/doc prefixes |
+| granite-embedding-english-r2 | 149M | 768 | mean | long-document retrieval (WASM) |
+| snowflake-arctic-embed-m-v2.0 | 305M | 768 | cls | multilingual, query prefix |
+| embeddinggemma-300m | 300M | 768 | head | custom `sentence_embedding` loader (WASM) |
+| Qwen3-Embedding-0.6B | 596M | 1024 | last-token | top of MTEB for its size |
 
-WebGPU is the default device when available; everything falls back to WASM if not. The model load is cached in IndexedDB by transformers.js, and pooled vectors are cached in localStorage by us — switching between models is fast after the first download.
+WebGPU is the default device when available; ModernBERT/Gemma models force WASM (their rotary ops aren't WebGPU-ready in transformers.js yet). Models with instruction prefixes get them **per role** — queries embed with the query template, documents with the document template. Weights are cached by the browser; full embedding results are cached in memory and pooled vectors in localStorage.
 
 ## Run it locally
 
@@ -39,7 +46,7 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173. The first model load takes ~30 seconds depending on connection.
+Then open http://localhost:5173. The first model load takes a few seconds to ~30s depending on connection.
 
 ## Build
 
@@ -56,41 +63,45 @@ The `main` branch deploys to GitHub Pages on every push via `.github/workflows/d
 
 - **Svelte 5** (runes) + **SvelteKit** with `adapter-static`
 - **TypeScript** strict mode
-- **Tailwind CSS 4**
-- **@huggingface/transformers** for in-browser inference
-- **Three.js** for the 3D cloud (CSS2DRenderer for labels)
-- **driver.js** for the optional tour
+- **@huggingface/transformers** for in-browser inference (+ optional Ollama backend)
+- **Three.js** for the 3D cloud (WebGL + CSS2DRenderer labels, incremental scene updates, animated projection transitions)
+- **@lucide/svelte** icons via a central registry
 - **vitest** for unit tests
+
+Every color in the app — DOM, Three.js materials, canvas scales, per-lab identity hues — derives from five OKLCH primitives in `src/lib/theme/palette.ts`. Change a primitive and the whole app re-colors, 3D scene included.
 
 ## Project layout
 
 ```
 src/
 ├── lib/
-│   ├── corpus/            # Seed sentences for the Compare lab's neighborhood
-│   ├── labs/              # The five labs — each is a self-contained mini-app
+│   ├── corpus/            # Seed sentences for Compare's context toggle
+│   ├── labs/              # The five labs + shared embed orchestration
 │   │   ├── CompareLab.svelte
 │   │   ├── TrajectoryLab.svelte
-│   │   ├── RAGLab.svelte
-│   │   ├── AnalogiesLab.svelte
-│   │   └── PlaneLab.svelte
-│   ├── math/              # PCA, similarity, stats — all unit-tested
-│   ├── models/            # Embedder abstraction + transformers.js / Ollama backends
+│   │   ├── RAGLab.svelte        # the Retrieve lab
+│   │   ├── ClassifyLab.svelte
+│   │   ├── ClusterLab.svelte
+│   │   ├── embed.svelte.ts      # debounced, generation-guarded single/batch embeds
+│   │   └── labState.svelte.ts   # per-lab localStorage persistence
+│   ├── math/              # PCA, k-means, similarity, stats — all unit-tested
+│   ├── models/            # Registry + orchestrator + transformers.js / Ollama embedders
 │   ├── rag/               # Sample documents + chunking strategies
-│   ├── stores/            # Shared shell store (model, cache, corpus, lab switcher)
-│   ├── theme/             # OKLCH-derived theme tokens
+│   ├── shell/             # Rail, docks, scope bar, guide, model manager, busy pill
+│   ├── stores/            # Shared shell store (model, caches, lab switcher)
+│   ├── theme/             # OKLCH primitives → every color in the app
 │   └── viz/               # SemanticCloud, TokenHeatmap, DimensionBars
 └── routes/
     ├── +layout.svelte
     ├── +layout.ts         # ssr=false (everything is client-only)
-    └── +page.svelte       # Top bar + lab host
+    └── +page.svelte       # Rail + lab host + overlays
 ```
 
 ## Known limitations
 
-- **EmbeddingGemma**, **static-embedding models** (model2vec, sentence-transformers' static-retrieval-mrl), and **Qwen3 ≥ 4B** are not yet wired up. They need a custom loader path — Gemma needs `AutoModel` with the `sentence_embedding` head, static models need an `offsets` input for `EmbeddingBag`, and the bigger Qwen3 variants are bandwidth-prohibitive without quantization tuning. Tracked in the project's memory notes.
-- **Word-arithmetic analogies** on sentence transformers don't fully land (the parallelogram property gets destroyed by `[CLS] + word + [SEP]` mean-pooling). The Analogies lab is honest about this.
-- **WebGPU buffer-recycling bug** in older transformers.js (≤ 3.7) caused short single-token inputs to return stale data. Fixed in 3.8 and verified.
+- **Static-embedding models** (model2vec, static-retrieval-mrl) and **Qwen3 ≥ 4B** are not wired up — static models need an `offsets` input for `EmbeddingBag`, and the bigger Qwen3 variants ship browser-prohibitive unquantized ONNX. This is also why there is no Analogies lab: word arithmetic doesn't really work on sentence transformers, and we'd rather show it honestly on a static model when one lands.
+- **Matryoshka truncation** is modeled in the registry (`matryoshkaDims`) but not yet surfaced as a UI slider.
+- **Ollama** backend covers only the models with an Ollama config (MiniLM, Nomic) and returns pooled vectors only — the token heatmap degrades gracefully.
 
 ## License
 

@@ -8,7 +8,7 @@
  */
 
 import { OLLAMA_URL } from './detect.ts';
-import type { Embedder, EmbeddingResult, LoadProgress, ModelInfo } from './types.ts';
+import type { EmbedOptions, Embedder, EmbeddingResult, LoadProgress, ModelInfo } from './types.ts';
 
 export class OllamaEmbedder implements Embedder {
 	readonly backend = 'ollama' as const;
@@ -109,11 +109,13 @@ export class OllamaEmbedder implements Embedder {
 		}
 	}
 
-	async embed(text: string): Promise<EmbeddingResult> {
+	async embed(text: string, opts: EmbedOptions = {}): Promise<EmbeddingResult> {
 		if (!this.loaded) throw new Error('Ollama model not loaded — call load() first.');
 		const t0 = performance.now();
 		const tag = this.model.ollama!.name;
-		const tpl = this.model.prefixes?.document ?? this.model.prefixes?.query;
+		// Role-correct prefixing — same rule as the transformers embedder: a
+		// missing template for a role means that role embeds raw.
+		const tpl = this.model.prefixes?.[opts.role ?? 'document'];
 		const input = tpl ? tpl.replace('{text}', text) : text;
 
 		const r = await fetch(`${this.baseUrl}/api/embeddings`, {

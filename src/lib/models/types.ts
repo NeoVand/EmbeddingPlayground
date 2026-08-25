@@ -124,12 +124,24 @@ export interface LoadProgress {
 	error?: string;
 }
 
+/**
+ * Which prefix template to apply. Retrieval-tuned models are trained with an
+ * instruction prepended to the query, the document, or both — mixing them up
+ * measurably degrades retrieval. Texts that aren't part of a query/document
+ * pair (Compare, Trajectory, Cluster inputs) embed as 'document'.
+ */
+export type EmbedRole = 'query' | 'document';
+
+export interface EmbedOptions {
+	role?: EmbedRole;
+}
+
 export interface Embedder {
 	readonly backend: Backend;
 	readonly model: ModelInfo;
 	/** Idempotent — calling twice is fine. */
 	load(onProgress?: (p: LoadProgress) => void): Promise<void>;
-	embed(text: string): Promise<EmbeddingResult>;
+	embed(text: string, opts?: EmbedOptions): Promise<EmbeddingResult>;
 	dispose(): Promise<void>;
 }
 

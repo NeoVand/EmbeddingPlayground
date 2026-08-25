@@ -63,9 +63,10 @@ export async function chooseEmbedder(
 		};
 	}
 
-	// Last-ditch: if preferred path failed, swap.
+	// Last-ditch: if preferred path failed, swap. Still honor preferredDevice —
+	// handing a ModernBERT/Gemma model to WebGPU here would crash its rotary ops.
 	if (model.hf && (avail.webgpu || avail.wasm)) {
-		const device = avail.webgpu ? 'webgpu' : 'wasm';
+		const device = model.preferredDevice === 'wasm' ? 'wasm' : avail.webgpu ? 'webgpu' : 'wasm';
 		return {
 			embedder: new TransformersEmbedder(model, { device }),
 			backend: 'transformers',

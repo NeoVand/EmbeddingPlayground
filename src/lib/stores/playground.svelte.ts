@@ -1,19 +1,15 @@
 /**
  * Shared shell store. Each lab manages its own state — this store is just
- * the things every lab needs: the active model, the embedder, the cache,
- * the corpus, the lab switcher.
- *
- * Slot / pair / arithmetic / projection-mode state used to live here and
- * leaked across tabs. Those now live inside the individual labs.
+ * the things every lab needs: the active model, the embedder, the caches,
+ * the lab switcher, and shell-level UI state (model manager, first run).
  */
 
-import { SEED_CORPUS, type CorpusItem } from '$lib/corpus/seed.js';
 import { detectBackends } from '$lib/models/detect.js';
 import { chooseEmbedder, type BackendPreference, type SelectionPlan } from '$lib/models/orchestrator.js';
 import { DEFAULT_MODEL_ID, getModel, MODELS } from '$lib/models/registry.js';
 import type {
-	Backend,
 	BackendAvailability,
+	EmbedRole,
 	Embedder,
 	EmbeddingResult,
 	LoadProgress,
@@ -25,73 +21,78 @@ const STATE_KEY = 'embedding-playground:shell:v1';
 
 export type LabId = 'compare' | 'trajectory' | 'rag' | 'classify' | 'cluster';
 
-export interface CorpusEmbedding {
-	item: CorpusItem;
-	vector: Float32Array;
-}
-
 interface PersistedState {
 	modelId: string;
 	preference: BackendPreference;
 	lab: LabId;
-	tourSeen: boolean;
 }
 
 function defaultPersisted(): PersistedState {
 	return {
 		modelId: DEFAULT_MODEL_ID,
 		preference: 'auto',
-		lab: 'compare',
-		tourSeen: false
+		lab: 'compare'
 	};
 }
 
-function loadPersisted(): PersistedState {
+function loadPersisted(): { state: PersistedState; existed: boolean } {
 	try {
 		const raw = localStorage.getItem(STATE_KEY);
-		if (!raw) return defaultPersisted();
+		if (!raw) return { state: defaultPersisted(), existed: false };
 		const parsed = JSON.parse(raw) as Partial<PersistedState>;
 		const d = defaultPersisted();
 		return {
-			modelId: parsed.modelId ?? d.modelId,
-			preference: parsed.preference ?? d.preference,
-			lab: parsed.lab ?? d.lab,
-			tourSeen: parsed.tourSeen ?? false
+			state: {
+				modelId: parsed.modelId ?? d.modelId,
+				preference: parsed.preference ?? d.preference,
+				lab: parsed.lab ?? d.lab
+			},
+			existed: true
 		};
 	} catch {
-		return defaultPersisted();
+		return { state: defaultPersisted(), existed: false };
 	}
 }
 
+/**
+ * Two-tier caching:
+ *   • memory — the full EmbeddingResult (tokens + token vectors included), so
+ *     re-embedding the same text — including after a lab switch — is free and
+ *     the inspector stays complete. LRU-capped.
+ *   • localStorage (VectorCache) — pooled vectors only, survives reloads.
+ *     Write-through; read is only used as a hint that nothing changed.
+ */
+const MEMORY_CACHE_MAX = 400;
+
 function createPlayground() {
-	const cache = getVectorCache();
-	const persisted = typeof localStorage !== 'undefined' ? loadPersisted() : defaultPersisted();
+	const vectorCache = getVectorCache();
+	const loaded = typeof localStorage !== 'undefined' ? loadPersisted() : { state: defaultPersisted(), existed: true };
+	const persisted = loaded.state;
 
 	let modelId = $state<string>(persisted.modelId);
 	let preference = $state<BackendPreference>(persisted.preference);
 	let lab = $state<LabId>(persisted.lab);
-	let tourSeen = $state<boolean>(persisted.tourSeen);
 
 	let availability = $state<BackendAvailability | null>(null);
 	let selection = $state<SelectionPlan | null>(null);
 	let modelLoad = $state<LoadProgress | null>(null);
 	let modelReady = $state(false);
 
-	let corpusBuilding = $state(false);
-	let corpusProgress = $state(0);
-	let corpusCache = $state<{ modelId: string; backend: Backend; items: CorpusEmbedding[] } | null>(null);
+	// Shell UI state.
+	let modelManagerOpen = $state(!loaded.existed);
+	const firstRun = !loaded.existed;
 
 	// Aggregate "what is the app currently doing?" counters. Every embedText
 	// call increments embedQueueDepth on entry and decrements on exit so the
-	// page shell can render a global progress indicator without each lab
+	// shell can render a global progress indicator without each lab
 	// reporting its own state.
 	let embedQueueDepth = $state(0);
 	let embedTotalThisSession = $state(0);
 
 	const model = $derived<ModelInfo>(getModel(modelId));
-	const corpusReady = $derived(
-		corpusCache != null && corpusCache.modelId === modelId && corpusCache.backend === selection?.backend
-	);
+
+	// Memory tier — full results, keyed by model|backend|role|text.
+	const memoryCache = new Map<string, EmbeddingResult>();
 
 	let activeEmbedder: Embedder | null = null;
 	let activeKey = '';
@@ -128,73 +129,47 @@ function createPlayground() {
 	}
 
 	/**
-	 * Embed a single text. Cache-aware. Returns the full EmbeddingResult
-	 * (vector, tokens if available, etc.). `force: true` bypasses the cache.
+	 * Embed a single text with a role ('document' unless it's a search query).
+	 * Memory-cache-aware: a hit returns the complete previous result, tokens
+	 * included, without touching the model.
 	 */
-	async function embedText(text: string, _opts: { force?: boolean } = {}): Promise<EmbeddingResult> {
+	async function embedText(text: string, opts: { role?: EmbedRole } = {}): Promise<EmbeddingResult> {
 		const t = text.trim();
 		if (!t) throw new Error('Empty text');
+		const role = opts.role ?? 'document';
+
+		const e = await ensureEmbedder();
+		const backend = e.backend;
+		const memKey = `${modelId}|${backend}|${role}|${t.replace(/\s+/g, ' ')}`;
+		const hit = memoryCache.get(memKey);
+		if (hit) {
+			// LRU touch.
+			memoryCache.delete(memKey);
+			memoryCache.set(memKey, hit);
+			return hit;
+		}
 
 		embedQueueDepth++;
 		embedTotalThisSession++;
 		try {
-			const e = await ensureEmbedder();
-			const backend = e.backend;
-
-			// IMPORTANT: don't return a cache stub here. The cache holds only
-			// the pooled vector — re-using it loses per-token vectors and the
-			// inspector falls through to "no tokens available" the next time
-			// the same text is embedded. Always run a fresh forward pass so
-			// the result is complete; still write to the cache so the
-			// corpus-build path (which only needs vectors) stays fast.
-			const r = await e.embed(t);
-			cache.set(modelId, backend, t, r.vector);
+			const r = await e.embed(t, { role });
+			memoryCache.set(memKey, r);
+			if (memoryCache.size > MEMORY_CACHE_MAX) {
+				const oldest = memoryCache.keys().next().value;
+				if (oldest !== undefined) memoryCache.delete(oldest);
+			}
+			// Persist the pooled vector. Query-role embeddings get a marked key so
+			// they never collide with document embeddings of the same text.
+			vectorCache.set(modelId, backend, role === 'query' ? `q:${t}` : t, r.vector);
 			return r;
 		} finally {
 			embedQueueDepth--;
 		}
 	}
 
-	async function buildCorpus(): Promise<void> {
-		const e = await ensureEmbedder();
-		const targetModelId = modelId;
-		const targetBackend = e.backend;
-		if (
-			corpusCache &&
-			corpusCache.modelId === targetModelId &&
-			corpusCache.backend === targetBackend
-		)
-			return;
-		if (corpusBuilding) return;
-
-		corpusBuilding = true;
-		corpusProgress = 0;
-		try {
-			const out: CorpusEmbedding[] = [];
-			for (let i = 0; i < SEED_CORPUS.length; i++) {
-				if (modelId !== targetModelId) return;
-				const item = SEED_CORPUS[i];
-				const cached = cache.get(targetModelId, targetBackend, item.text);
-				if (cached) {
-					out.push({ item, vector: cached });
-				} else {
-					const r = await e.embed(item.text);
-					cache.set(targetModelId, targetBackend, item.text, r.vector);
-					out.push({ item, vector: r.vector });
-				}
-				corpusProgress = (i + 1) / SEED_CORPUS.length;
-			}
-			if (modelId === targetModelId) {
-				corpusCache = { modelId: targetModelId, backend: targetBackend, items: out };
-			}
-		} finally {
-			corpusBuilding = false;
-		}
-	}
-
 	function persist(): void {
 		try {
-			const state: PersistedState = { modelId, preference, lab, tourSeen };
+			const state: PersistedState = { modelId, preference, lab };
 			localStorage.setItem(STATE_KEY, JSON.stringify(state));
 		} catch {
 			/* quota; ignore */
@@ -207,18 +182,16 @@ function createPlayground() {
 			void modelId;
 			void preference;
 			void lab;
-			void tourSeen;
 			persist();
 		});
 
-		// On model / backend change, eagerly load and start a corpus build.
+		// On model / backend change, eagerly load so the first embed is instant.
 		$effect(() => {
 			void modelId;
 			void preference;
 			void (async () => {
 				try {
 					await ensureEmbedder();
-					void buildCorpus();
 				} catch (err) {
 					console.error('Model change failed', err);
 				}
@@ -267,26 +240,15 @@ function createPlayground() {
 			lab = v;
 		},
 
-		// tour
-		get tourSeen() {
-			return tourSeen;
+		// shell UI
+		get modelManagerOpen() {
+			return modelManagerOpen;
 		},
-		set tourSeen(v: boolean) {
-			tourSeen = v;
+		set modelManagerOpen(v: boolean) {
+			modelManagerOpen = v;
 		},
-
-		// corpus
-		get corpus() {
-			return corpusCache;
-		},
-		get corpusReady() {
-			return corpusReady;
-		},
-		get corpusBuilding() {
-			return corpusBuilding;
-		},
-		get corpusProgress() {
-			return corpusProgress;
+		get firstRun() {
+			return firstRun;
 		},
 
 		// Aggregate processing state for the global progress indicator.
@@ -297,11 +259,7 @@ function createPlayground() {
 			return embedTotalThisSession;
 		},
 		get isBusy() {
-			return (
-				embedQueueDepth > 0 ||
-				corpusBuilding ||
-				modelLoad?.status === 'loading'
-			);
+			return embedQueueDepth > 0 || modelLoad?.status === 'loading';
 		},
 
 		// actions
@@ -314,6 +272,6 @@ function createPlayground() {
 
 export const playground = createPlayground();
 
-if (typeof window !== 'undefined') {
+if (import.meta.env.DEV && typeof window !== 'undefined') {
 	(window as unknown as { __playground: unknown }).__playground = playground;
 }

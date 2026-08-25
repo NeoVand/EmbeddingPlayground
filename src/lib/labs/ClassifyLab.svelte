@@ -1,66 +1,60 @@
 <script lang="ts">
 	/**
-	 * Classification Lab — "Embed the prototypes, classify by nearest neighbor"
+	 * Classify — nearest-prototype classification.
 	 *
-	 * For each class we average the embeddings of its labeled examples to get
-	 * a prototype vector. To classify a query we compute cosine similarity to
-	 * each prototype, then softmax those similarities into a probability-like
-	 * distribution. The cloud shows training points colored by class, the
-	 * prototypes as larger rings, and the query as a gold marker with lines
-	 * to each prototype (line thickness ∝ similarity).
-	 *
-	 * Users can edit examples inline, add new ones, or upload a `text,label`
-	 * CSV to drop in their own dataset.
+	 * Each class prototype is the L2-normalized mean of its example
+	 * embeddings; a query is scored by cosine to every prototype, softmaxed
+	 * with a *visible* temperature. (The old UI hard-coded T=0.08, which
+	 * faked near-certainty — now the uncertainty is honest and explorable.)
 	 */
 
-	import { playground } from '$lib/stores/playground.svelte.js';
-	import SemanticCloud, { type CloudPoint, type CloudLink } from '$lib/viz/SemanticCloud.svelte';
-	import InspectorRow from '$lib/components/InspectorRow.svelte';
+	import { IconAdd, IconRemove, IconTemperature, IconUpload } from '$lib/icons.js';
 	import { cosine } from '$lib/math/similarity.js';
 	import { columnMeans, l2NormalizeInPlace } from '$lib/math/stats.js';
-	import { createLabState } from './labState.svelte.js';
 	import type { EmbeddingResult } from '$lib/models/types.js';
-	import {
-		CLASSIFY_DATASETS,
-		getDataset,
-		parseCsv,
-		type LabeledExample
-	} from './classifyData.js';
+	import { playground } from '$lib/stores/playground.svelte.js';
+	import { PIN_HUE } from '$lib/theme/palette.js';
+	import { theme } from '$lib/theme/theme.svelte.js';
+	import InfoPop from '$lib/shell/InfoPop.svelte';
+	import LabShell from '$lib/shell/LabShell.svelte';
+	import SemanticCloud, { type CloudLink, type CloudPoint } from '$lib/viz/SemanticCloud.svelte';
+	import { CLASSIFY_DATASETS, getDataset, parseCsv, type LabeledExample } from './classifyData.js';
+	import { createBatchEmbed, createSingleEmbed } from './embed.svelte.js';
+	import { createLabState } from './labState.svelte.js';
 
 	const lab = createLabState('classify', {
 		datasetId: 'sentiment' as string,
 		examples: [...CLASSIFY_DATASETS[0].examples] as LabeledExample[],
 		query: 'I absolutely loved every minute of it.',
+		temperature: 0.25,
 		uploadError: '' as string
 	});
 
-	let exampleResults = $state(new Map<string, EmbeddingResult>());
-	const exampleEmbeddings = $derived.by<Map<string, Float32Array>>(() => {
-		const m = new Map<string, Float32Array>();
-		for (const [id, r] of exampleResults) m.set(id, r.vector);
-		return m;
-	});
-	let queryResult = $state<EmbeddingResult | null>(null);
-	let queryVector = $derived(queryResult?.vector ?? null);
-	let loadingCount = $state(0);
-	let loadingTotal = $state(0);
-	let embeddingQuery = $state(false);
-	let selectedExampleId = $state<string | null>(null);
+	const exBatch = createBatchEmbed({ delay: 300 });
+	const queryEmbed = createSingleEmbed({ delay: 300 });
 
+	$effect(() => {
+		void playground.modelId;
+		void lab.examples.map((e) => e.id + e.text + e.label).join('|');
+		exBatch.run(lab.examples.map((e) => ({ id: e.id, text: e.text })));
+	});
+	$effect(() => {
+		void playground.modelId;
+		queryEmbed.run(lab.query);
+	});
+
+	let selectedId = $state<string | null>(null);
 	const selectedResult = $derived.by<EmbeddingResult | null>(() => {
-		if (selectedExampleId === 'query') return queryResult;
-		if (selectedExampleId && exampleResults.has(selectedExampleId)) {
-			return exampleResults.get(selectedExampleId) ?? null;
-		}
+		if (selectedId === 'query') return queryEmbed.result;
+		if (selectedId) return exBatch.results.get(selectedId) ?? null;
 		return null;
 	});
 
-	function selectPoint(id: string) {
-		selectedExampleId = id;
-	}
-
-	// ---------- dataset switching ----------
-	const dataset = $derived.by<ReturnType<typeof getDataset>>(() => getDataset(lab.datasetId));
+	const dataset = $derived(getDataset(lab.datasetId));
+	const datasetClasses = $derived(
+		dataset?.classes ?? Array.from(new Set(lab.examples.map((e) => e.label)))
+	);
+	const testQueries = $derived(dataset?.testQueries ?? []);
 
 	function pickDataset(id: string) {
 		const d = getDataset(id);
@@ -70,67 +64,6 @@
 		lab.uploadError = '';
 	}
 
-	// ---------- embedding ----------
-	let exSeq = 0;
-	async function embedExamples() {
-		const mySeq = ++exSeq;
-		loadingTotal = lab.examples.length;
-		loadingCount = 0;
-		const map = new Map<string, EmbeddingResult>();
-		try {
-			for (let i = 0; i < lab.examples.length; i++) {
-				if (mySeq !== exSeq) return;
-				const ex = lab.examples[i];
-				if (!ex.text.trim()) continue;
-				const r = await playground.embedText(ex.text);
-				if (mySeq !== exSeq) return;
-				map.set(ex.id, r);
-				loadingCount = i + 1;
-				if (i % 3 === 0 || i === lab.examples.length - 1) {
-					exampleResults = new Map(map);
-				}
-			}
-			exampleResults = map;
-		} finally {
-			if (mySeq === exSeq) loadingTotal = 0;
-		}
-	}
-
-	let querySeq = 0;
-	async function embedQuery() {
-		const q = lab.query.trim();
-		if (!q) {
-			queryResult = null;
-			return;
-		}
-		const s = ++querySeq;
-		embeddingQuery = true;
-		try {
-			const r = await playground.embedText(q);
-			if (s === querySeq) queryResult = r;
-		} finally {
-			if (s === querySeq) embeddingQuery = false;
-		}
-	}
-
-	let exTimer: ReturnType<typeof setTimeout> | null = null;
-	$effect(() => {
-		void lab.examples.map((e) => e.id + e.text + e.label).join('|');
-		void playground.modelId;
-		if (exTimer) clearTimeout(exTimer);
-		exTimer = setTimeout(() => void embedExamples(), 300);
-	});
-
-	let qTimer: ReturnType<typeof setTimeout> | null = null;
-	$effect(() => {
-		void lab.query;
-		void playground.modelId;
-		if (qTimer) clearTimeout(qTimer);
-		qTimer = setTimeout(() => void embedQuery(), 300);
-	});
-
-	// ---------- prototypes ----------
-	type Prototype = { label: string; vector: Float32Array; count: number; hue: number };
 	const classHues: Record<string, number> = {
 		positive: 145,
 		negative: 25,
@@ -145,17 +78,18 @@
 	};
 	function labelHue(label: string, idx: number): number {
 		const palette = [200, 30, 145, 280, 60, 320, 170, 0];
-		return classHues[label] ?? palette[idx % palette.length];
+		return classHues[label] ?? palette[((idx % palette.length) + palette.length) % palette.length];
 	}
 
+	type Prototype = { label: string; vector: Float32Array; count: number; hue: number };
 	const prototypes = $derived.by<Prototype[]>(() => {
-		const classes = dataset?.classes ?? Array.from(new Set(lab.examples.map((e) => e.label)));
+		const classes = datasetClasses;
 		const out: Prototype[] = [];
 		for (let i = 0; i < classes.length; i++) {
 			const cls = classes[i];
 			const vecs = lab.examples
 				.filter((e) => e.label === cls)
-				.map((e) => exampleEmbeddings.get(e.id))
+				.map((e) => exBatch.results.get(e.id)?.vector)
 				.filter((v): v is Float32Array => !!v);
 			if (vecs.length === 0) continue;
 			const mean = columnMeans(vecs);
@@ -167,20 +101,13 @@
 		return out;
 	});
 
-	// ---------- prediction ----------
 	type Prediction = { label: string; sim: number; prob: number; hue: number };
 	const predictions = $derived.by<Prediction[]>(() => {
-		if (!queryVector || prototypes.length === 0) return [];
-		const dim = queryVector.length;
-		if (prototypes.some((p) => p.vector.length !== dim)) return [];
-		const raw = prototypes.map((p) => ({
-			label: p.label,
-			sim: cosine(queryVector!, p.vector),
-			hue: p.hue
-		}));
-		// Softmax with a temperature for sharper probabilities; cosines are
-		// already in [-1, 1] so we scale up first.
-		const T = 0.08;
+		const q = queryEmbed.result?.vector;
+		if (!q || prototypes.length === 0) return [];
+		if (prototypes.some((p) => p.vector.length !== q.length)) return [];
+		const raw = prototypes.map((p) => ({ label: p.label, sim: cosine(q, p.vector), hue: p.hue }));
+		const T = Math.max(0.02, lab.temperature);
 		const logits = raw.map((r) => r.sim / T);
 		const m = Math.max(...logits);
 		const exps = logits.map((l) => Math.exp(l - m));
@@ -190,14 +117,12 @@
 		return out;
 	});
 
-	// ---------- cloud ----------
 	const points = $derived.by<CloudPoint[]>(() => {
 		const out: CloudPoint[] = [];
-		// Training examples as small dots, hue by class.
 		for (const ex of lab.examples) {
-			const v = exampleEmbeddings.get(ex.id);
+			const v = exBatch.results.get(ex.id)?.vector;
 			if (!v) continue;
-			const classIdx = (dataset?.classes ?? []).indexOf(ex.label);
+			const classIdx = datasetClasses.indexOf(ex.label);
 			out.push({
 				id: ex.id,
 				vector: v,
@@ -206,27 +131,24 @@
 				variant: 'dot'
 			});
 		}
-		// Prototypes as larger spheres labeled by class.
 		for (const p of prototypes) {
 			out.push({
 				id: `proto_${p.label}`,
 				vector: p.vector,
 				hue: p.hue,
 				label: p.label,
-				hoverText: `prototype · ${p.label} · n=${p.count}`,
+				hoverText: `prototype · ${p.label} · mean of ${p.count} examples`,
 				size: 1.1
 			});
 		}
-		// Query as a gold ring.
-		if (queryVector) {
+		if (queryEmbed.result) {
 			out.push({
 				id: 'query',
-				vector: queryVector,
-				hue: 60,
+				vector: queryEmbed.result.vector,
+				hue: PIN_HUE,
 				label: 'QUERY',
 				hoverText: `query: "${lab.query}"`,
 				size: 1.2,
-				variant: 'ring',
 				pinned: true
 			});
 		}
@@ -234,25 +156,19 @@
 	});
 
 	const links = $derived.by<CloudLink[]>(() => {
-		if (!queryVector) return [];
-		// Line to every prototype, opacity ∝ probability.
+		if (!queryEmbed.result) return [];
 		return predictions.map((p) => ({
 			from: 'query',
 			to: `proto_${p.label}`,
 			style: 'solid' as const,
-			color: 0xd8c068,
-			opacity: 0.25 + p.prob * 0.55
+			hue: PIN_HUE,
+			opacity: 0.2 + p.prob * 0.6
 		}));
 	});
 
-	// ---------- editing ----------
 	function addExample() {
-		const classes = dataset?.classes ?? Array.from(new Set(lab.examples.map((e) => e.label)));
-		const defaultLabel = classes[0] ?? 'class';
-		lab.examples = [
-			...lab.examples,
-			{ id: `ex_${Date.now()}`, text: '', label: defaultLabel }
-		];
+		const defaultLabel = datasetClasses[0] ?? 'class';
+		lab.examples = [...lab.examples, { id: `ex_${Date.now()}`, text: '', label: defaultLabel }];
 	}
 	function setExampleText(id: string, text: string) {
 		lab.examples = lab.examples.map((e) => (e.id === id ? { ...e, text } : e));
@@ -273,7 +189,7 @@
 			try {
 				const parsed = parseCsv(String(reader.result ?? ''));
 				if (parsed.length === 0) {
-					lab.uploadError = 'No rows parsed. Need a text + label CSV.';
+					lab.uploadError = 'No rows parsed — need a text + label CSV.';
 					return;
 				}
 				lab.examples = parsed;
@@ -285,427 +201,234 @@
 		reader.readAsText(f);
 	}
 
-	function applyTestQuery(q: string) {
-		lab.query = q;
-	}
-
-	const datasetClasses = $derived(dataset?.classes ?? Array.from(new Set(lab.examples.map((e) => e.label))));
-	const testQueries = $derived(dataset?.testQueries ?? []);
+	const guide = [
+		{
+			title: 'Classification without training',
+			body: 'No gradient descent here. Each class prototype is just the average of its examples’ embeddings; the query goes to whichever prototype it is closest to. A dozen labeled examples is enough.',
+			apply: () => pickDataset('sentiment'),
+			applyLabel: 'Load sentiment'
+		},
+		{
+			title: 'Watch the uncertainty',
+			body: 'Try "It was fine, I guess." — genuinely ambiguous between neutral and positive. Now drag the temperature down and watch the model pretend to be certain. Softmax temperature doesn’t change the decision, only the confidence theater.',
+			apply: () => (lab.query = 'It was fine, I guess.'),
+			applyLabel: 'Try the ambiguous one'
+		},
+		{
+			title: 'Break a prototype',
+			body: 'Delete a few positive examples, or relabel them. The prototype drifts, the decision boundary moves, and misclassifications appear — the whole classifier is just geometry.',
+			apply: () => pickDataset('spam'),
+			applyLabel: 'Load spam vs ham'
+		}
+	];
 </script>
 
-<main class="lab">
-	<section class="lab-top">
-		<div class="cloud-fill">
-			<SemanticCloud
-				{points}
-				{links}
-				mode="pca"
-				selectedId={selectedExampleId ?? (queryVector ? 'query' : null)}
-				onPointClick={selectPoint}
-			/>
-		</div>
+<LabShell
+	labId="classify"
+	dockTitle="Training data"
+	resultsTitle="Prediction"
+	selected={selectedResult}
+	selectedLabel={selectedId === 'query' ? 'QUERY' : selectedId ? 'example' : null}
+	scopeHint="Click any training example or the QUERY reticle to inspect its embedding."
+	{guide}
+>
+	{#snippet cloud()}
+		<SemanticCloud
+			{points}
+			{links}
+			selectedId={selectedId ?? (queryEmbed.result ? 'query' : null)}
+			onPointClick={(id) => (selectedId = id)}
+		/>
+	{/snippet}
 
-	<aside class="left">
-		<div class="card glass">
-			<div class="head">
-				<span class="eyebrow">Dataset</span>
-				<label class="upload no-select" title="Upload a CSV with text,label columns">
-					<input type="file" accept=".csv,.tsv,.txt" onchange={onUpload} />
-					<span>+ csv</span>
-				</label>
+	{#snippet dockHeader()}
+		<label class="icon-btn" title="Upload a CSV with text,label columns">
+			<input class="file-input" type="file" accept=".csv,.tsv,.txt" onchange={onUpload} />
+			<IconUpload size={14} />
+		</label>
+	{/snippet}
+
+	{#snippet dock()}
+		<div class="chips">
+			{#each CLASSIFY_DATASETS as d (d.id)}
+				<button class="chip-btn" class:on={lab.datasetId === d.id} onclick={() => pickDataset(d.id)} title={d.description}>
+					{d.name}
+				</button>
+			{/each}
+		</div>
+		{#if lab.uploadError}
+			<p class="err">{lab.uploadError}</p>
+		{/if}
+
+		<div class="hairline"></div>
+
+		<div class="fld-label">
+			<span>Examples
+				<InfoPop title="Prototypes">
+					<p>All examples with the same label are averaged into one <b>prototype</b> vector (then re-normalized).</p>
+					<p>Edit, relabel or delete examples and watch the prototypes move in the cloud.</p>
+				</InfoPop>
+			</span>
+			<span class="count tabular">
+				{#if exBatch.loading}{exBatch.done}/{exBatch.total}{:else}{lab.examples.length} · {datasetClasses.length} classes{/if}
+			</span>
+			<button class="icon-btn" onclick={addExample} aria-label="Add an example"><IconAdd size={14} /></button>
+		</div>
+		<ul class="ex-list">
+			{#each lab.examples as ex (ex.id)}
+				{@const classIdx = datasetClasses.indexOf(ex.label)}
+				<li class="item-row" style:--c={theme.hueCss(labelHue(ex.label, classIdx))}>
+					<input
+						class="fld"
+						value={ex.text}
+						oninput={(e) => setExampleText(ex.id, (e.target as HTMLInputElement).value)}
+						placeholder="example text…"
+					/>
+					<input
+						class="fld label-fld"
+						value={ex.label}
+						oninput={(e) => setExampleLabel(ex.id, (e.target as HTMLInputElement).value)}
+						title="class label"
+						style:color="var(--c)"
+					/>
+					<button class="icon-btn danger" onclick={() => removeExample(ex.id)} aria-label="Remove">
+						<IconRemove size={13} />
+					</button>
+				</li>
+			{/each}
+		</ul>
+	{/snippet}
+
+	{#snippet results()}
+		<div>
+			<div class="fld-label">
+				<span>Query</span>
+				{#if queryEmbed.loading}<span class="busy">…</span>{/if}
 			</div>
-			<div class="ds-list">
-				{#each CLASSIFY_DATASETS as d (d.id)}
-					{@const active = lab.datasetId === d.id}
-					<button class="ds" class:active onclick={() => pickDataset(d.id)}>
-						<span class="ds-name">{d.name}</span>
-						<span class="ds-desc">{d.description}</span>
+			<textarea class="fld" bind:value={lab.query} rows="2" spellcheck="false" placeholder="text to classify"></textarea>
+		</div>
+		{#if testQueries.length > 0}
+			<div class="chips">
+				{#each testQueries as q, i (i)}
+					<button class="chip-btn tq" onclick={() => (lab.query = q)} title={q}>
+						{q.split(' ').slice(0, 4).join(' ')}…
 					</button>
 				{/each}
 			</div>
-			{#if lab.uploadError}
-				<p class="upload-err">{lab.uploadError}</p>
-			{/if}
-		</div>
+		{/if}
 
-		<div class="card glass scrollable">
-			<div class="head">
-				<span class="eyebrow">Examples</span>
-				<div class="head-right">
-					{#if loadingTotal > 0}
-						<span class="status loading tabular">{loadingCount}/{loadingTotal}</span>
-					{:else}
-						<span class="status tabular">{lab.examples.length} · {datasetClasses.length} classes</span>
-					{/if}
-					<button class="add" onclick={addExample} title="Add an example">＋</button>
-				</div>
-			</div>
-			<ul class="ex-list">
-				{#each lab.examples as ex (ex.id)}
-					{@const classIdx = datasetClasses.indexOf(ex.label)}
-					<li style:--c={`oklch(0.78 0.18 ${labelHue(ex.label, classIdx)})`}>
-						<div class="ex-row">
-							<input
-								class="ex-text"
-								value={ex.text}
-								oninput={(e) => setExampleText(ex.id, (e.target as HTMLInputElement).value)}
-								placeholder="example text…"
-							/>
-							<input
-								class="ex-label"
-								value={ex.label}
-								oninput={(e) => setExampleLabel(ex.id, (e.target as HTMLInputElement).value)}
-								title="class label"
-							/>
-							<button class="x" onclick={() => removeExample(ex.id)} title="Remove">×</button>
+		<div class="hairline"></div>
+
+		{#if predictions.length === 0}
+			<p class="empty-note">
+				{#if exBatch.loading}Building prototypes…{:else if !queryEmbed.result}Type a query to classify it.{:else}—{/if}
+			</p>
+		{:else}
+			<ol class="preds">
+				{#each predictions as p, i (p.label)}
+					<li style:--c={theme.hueCss(p.hue)} class:top={i === 0}>
+						<div class="pred-head">
+							<span class="hue-badge">{p.label}</span>
+							<span class="pred-prob tabular">{(p.prob * 100).toFixed(1)}%</span>
 						</div>
+						<div class="track"><div class="fill pred-fill" style:width={`${p.prob * 100}%`}></div></div>
+						<div class="pred-cos tabular no-select">cos {p.sim.toFixed(3)}</div>
 					</li>
 				{/each}
-			</ul>
-		</div>
-	</aside>
+			</ol>
 
-	<aside class="right">
-		<div class="card glass">
-			<div class="head">
-				<span class="eyebrow">Query</span>
-				{#if embeddingQuery}<span class="status loading">…</span>{/if}
+			<div class="hairline"></div>
+
+			<div class="fld-label">
+				<span><IconTemperature size={11} /> temperature
+					<InfoPop title="Softmax temperature">
+						<p><code>softmax(cos / T)</code> turns similarities into probability-like scores.</p>
+						<p><b>Low T</b> exaggerates small differences into near-certainty; <b>high T</b> flattens everything toward equal odds. The winning class never changes — only the confidence.</p>
+					</InfoPop>
+				</span>
+				<span class="count tabular">T = {lab.temperature.toFixed(2)}</span>
 			</div>
-			<textarea
-				bind:value={lab.query}
-				rows="2"
-				placeholder="text to classify"
-				spellcheck="false"
-			></textarea>
-			{#if testQueries.length > 0}
-				<div class="test-queries">
-					<span class="eyebrow no-select">try:</span>
-					{#each testQueries as q, i (i)}
-						<button class="test-q" onclick={() => applyTestQuery(q)} title={q}>
-							{q.split(' ').slice(0, 5).join(' ')}…
-						</button>
-					{/each}
-				</div>
-			{/if}
-		</div>
-
-		<div class="card glass">
-			<div class="head">
-				<span class="eyebrow">Prediction</span>
-				<span class="meta">softmax(cosine / T)</span>
-			</div>
-			{#if predictions.length === 0}
-				<p class="empty">
-					{#if loadingTotal > 0}Building prototypes…{:else if !queryVector}Type a query.{:else}—{/if}
-				</p>
-			{:else}
-				<ol class="preds">
-					{#each predictions as p, i (p.label)}
-						<li style:--c={`oklch(0.78 0.18 ${p.hue})`} class:top={i === 0}>
-							<div class="pred-head">
-								<span class="pred-badge">{p.label}</span>
-								<span class="pred-prob tabular">{(p.prob * 100).toFixed(1)}%</span>
-							</div>
-							<div class="pred-bar">
-								<div class="pred-fill" style:width={`${p.prob * 100}%`}></div>
-							</div>
-							<div class="pred-cos no-select tabular">cos {p.sim.toFixed(3)}</div>
-						</li>
-					{/each}
-				</ol>
-			{/if}
-		</div>
-	</aside>
-	</section>
-
-	<section class="lab-bottom">
-		<InspectorRow
-			result={selectedResult}
-			modelShortName={playground.model.shortName}
-			title={selectedExampleId === 'query' ? 'Query' : selectedExampleId ? 'Example' : 'Selected'}
-			emptyText="Click any training example or the QUERY ring to inspect its embedding."
-		/>
-	</section>
-</main>
+			<input class="t-slider" type="range" min="0.05" max="1" step="0.05" bind:value={lab.temperature} />
+		{/if}
+	{/snippet}
+</LabShell>
 
 <style>
-	.lab {
-		display: grid;
-		grid-template-rows: 1fr 220px;
-		gap: 10px;
-		min-height: 0;
-		height: 100%;
+	.busy {
+		color: var(--lab);
 	}
-	.lab-top {
-		position: relative;
-		display: flex;
-		gap: 10px;
-		min-height: 0;
-	}
-	.lab-bottom {
-		min-height: 0;
-		min-width: 0;
-	}
-	.cloud-fill {
-		position: absolute;
-		inset: 0;
-		z-index: 0;
-	}
-	.left,
-	.right {
-		position: relative;
-		z-index: 2;
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-		min-height: 0;
-		flex-shrink: 0;
-	}
-	.left {
-		width: 360px;
-	}
-	.right {
-		width: 380px;
+	.count {
+		font-size: 10px;
+		color: var(--text-subtle);
+		text-transform: none;
+		letter-spacing: 0;
 		margin-left: auto;
 	}
-	.card {
-		padding: 12px;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-	.card.scrollable {
-		min-height: 0;
-		flex: 1;
-	}
-	.card.scrollable .ex-list {
-		overflow-y: auto;
-		min-height: 0;
-	}
-	.head {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-	}
-	.head-right {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.meta {
-		font-size: 10px;
-		color: var(--text-subtle);
-	}
-	.status {
-		font-size: 10px;
-		color: var(--text-subtle);
-	}
-	.status.loading {
-		color: var(--accent);
-	}
-	.add {
-		width: 22px;
-		height: 22px;
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: 4px;
-		color: var(--text-secondary);
-		cursor: pointer;
-		font-size: 13px;
-	}
-	.add:hover {
-		border-color: var(--accent);
-		color: var(--accent);
-	}
-	.upload {
-		font-size: 10px;
-		color: var(--text-muted);
-		cursor: pointer;
-		padding: 2px 6px;
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: 3px;
-	}
-	.upload:hover {
-		color: var(--accent);
-		border-color: var(--accent);
-	}
-	.upload input {
-		display: none;
-	}
-	.upload-err {
-		font-size: 10px;
-		color: var(--bad);
-		margin: 0;
-	}
-
-	.ds-list {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-	.ds {
-		background: var(--surface-1);
-		border: 1px solid var(--border);
-		border-radius: 4px;
-		padding: 6px 8px;
-		cursor: pointer;
-		text-align: left;
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-	}
-	.ds:hover {
-		border-color: var(--border-strong);
-	}
-	.ds.active {
-		background: var(--accent-glow);
-		border-color: var(--accent);
-	}
-	.ds-name {
-		font-size: 12px;
-		font-weight: 600;
-		color: var(--text-primary);
-	}
-	.ds-desc {
-		font-size: 9px;
-		color: var(--text-subtle);
-		line-height: 1.4;
-	}
-
-	.ex-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-	.ex-list li {
-		border-left: 2px solid var(--c, transparent);
-		padding-left: 6px;
-	}
-	.ex-row {
-		display: grid;
-		grid-template-columns: 1fr 80px 18px;
-		gap: 4px;
-		align-items: center;
-	}
-	.ex-text,
-	.ex-label,
-	textarea,
-	.test-q {
-		font-family: 'Inter', sans-serif;
-		font-size: 11px;
-		background: var(--surface-1);
-		border: 1px solid var(--border);
-		border-radius: 3px;
-		color: var(--text-primary);
-		padding: 3px 6px;
-		min-width: 0;
-		box-sizing: border-box;
-	}
-	.ex-label {
-		color: var(--c, var(--text-primary));
-		font-weight: 600;
-		text-transform: lowercase;
-	}
-	.x {
-		background: transparent;
-		border: 0;
-		color: var(--text-subtle);
-		font-size: 13px;
-		cursor: pointer;
-		padding: 0;
-	}
-	.x:hover {
-		color: var(--bad);
-	}
-
-	textarea {
-		width: 100%;
-		font-size: 13px;
-		line-height: 1.45;
-		min-height: 44px;
-		padding: 6px 8px;
-		resize: vertical;
-	}
-	.test-queries {
+	.chips {
 		display: flex;
 		flex-wrap: wrap;
-		align-items: center;
-		gap: 4px;
+		gap: 5px;
 	}
-	.test-q {
-		cursor: pointer;
-		color: var(--text-muted);
-		font-size: 10px;
-		max-width: 130px;
+	.chip-btn.tq {
+		max-width: 100%;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.test-q:hover {
-		color: var(--accent);
-		border-color: var(--accent);
-	}
-
-	.empty {
-		font-size: 12px;
-		color: var(--text-subtle);
-		font-style: italic;
+	.err {
+		font-size: 11px;
+		color: var(--bad);
 		margin: 0;
 	}
-	.preds {
+	.file-input {
+		display: none;
+	}
+	ul.ex-list {
 		list-style: none;
 		padding: 0;
 		margin: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: 4px;
 	}
-	.preds li {
-		background: var(--surface-1);
-		border-left: 2px solid var(--c, transparent);
-		padding: 6px 8px;
+	.label-fld {
+		width: 74px;
+		flex: none;
+		font-weight: 600;
+		font-size: 11px;
+	}
+	ol.preds {
+		list-style: none;
+		padding: 0;
+		margin: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 3px;
-	}
-	.preds li.top {
-		background: color-mix(in oklab, var(--c) 12%, var(--surface-1));
+		gap: 10px;
 	}
 	.pred-head {
 		display: flex;
-		justify-content: space-between;
 		align-items: baseline;
-	}
-	.pred-badge {
-		font-size: 11px;
-		font-weight: 700;
-		color: var(--c);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
+		justify-content: space-between;
+		margin-bottom: 4px;
 	}
 	.pred-prob {
-		font-size: 14px;
-		font-weight: 700;
+		font-size: 15px;
+		font-weight: 650;
+		color: var(--text-primary);
+	}
+	ol.preds li.top .pred-prob {
 		color: var(--c);
 	}
-	.pred-bar {
-		height: 4px;
-		background: var(--surface-2);
-		border-radius: 2px;
-		overflow: hidden;
-	}
 	.pred-fill {
-		height: 100%;
-		background: var(--c);
-		transition: width 0.25s ease;
-		opacity: 0.85;
+		background: linear-gradient(90deg, color-mix(in oklab, var(--c) 40%, transparent), var(--c));
 	}
 	.pred-cos {
-		font-size: 9px;
+		font-size: 9.5px;
 		color: var(--text-subtle);
+		margin-top: 3px;
+	}
+	.t-slider {
+		width: 100%;
+		accent-color: var(--lab);
 	}
 </style>

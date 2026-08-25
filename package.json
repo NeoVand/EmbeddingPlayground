@@ -31,7 +31,6 @@
 		"@huggingface/transformers": "^3.3.3",
 		"@lucide/svelte": "^0.563.1",
 		"@types/three": "^0.182.0",
-		"driver.js": "^1.4.0",
 		"three": "^0.182.0"
 	}
 }
