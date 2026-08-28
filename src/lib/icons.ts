@@ -10,6 +10,7 @@ export { default as IconTrajectory } from '@lucide/svelte/icons/spline';
 export { default as IconRetrieve } from '@lucide/svelte/icons/scan-search';
 export { default as IconClassify } from '@lucide/svelte/icons/tags';
 export { default as IconCluster } from '@lucide/svelte/icons/waypoints';
+export { default as IconAnatomy } from '@lucide/svelte/icons/atom';
 
 // Shell chrome.
 export { default as IconModel } from '@lucide/svelte/icons/cpu';

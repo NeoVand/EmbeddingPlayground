@@ -6,6 +6,7 @@
 
 import type { Component } from 'svelte';
 import {
+	IconAnatomy,
 	IconClassify,
 	IconCluster,
 	IconCompare,
@@ -58,6 +59,13 @@ export const LABS: readonly LabMeta[] = [
 		tagline: 'Structure emerges with k-means',
 		icon: IconCluster,
 		hue: LAB_HUES.cluster
+	},
+	{
+		id: 'anatomy',
+		name: 'Anatomy',
+		tagline: 'Inside the transformer, live',
+		icon: IconAnatomy,
+		hue: LAB_HUES.anatomy
 	}
 ] as const;
 

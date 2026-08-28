@@ -1,0 +1,45 @@
+{
+ "transformers_version": "5.16.1",
+ "architectures": [
+  "BertModel"
+ ],
+ "output_hidden_states": false,
+ "return_dict": true,
+ "dtype": null,
+ "chunk_size_feed_forward": 0,
+ "is_encoder_decoder": false,
+ "id2label": {
+  "0": "LABEL_0",
+  "1": "LABEL_1"
+ },
+ "label2id": {
+  "LABEL_0": 0,
+  "LABEL_1": 1
+ },
+ "problem_type": null,
+ "vocab_size": 30522,
+ "hidden_size": 384,
+ "num_hidden_layers": 6,
+ "num_attention_heads": 12,
+ "intermediate_size": 1536,
+ "hidden_act": "gelu",
+ "hidden_dropout_prob": 0.1,
+ "attention_probs_dropout_prob": 0.1,
+ "max_position_embeddings": 512,
+ "type_vocab_size": 2,
+ "initializer_range": 0.02,
+ "layer_norm_eps": 1e-12,
+ "pad_token_id": 0,
+ "use_cache": true,
+ "classifier_dropout": null,
+ "is_decoder": false,
+ "add_cross_attention": false,
+ "bos_token_id": null,
+ "eos_token_id": null,
+ "tie_word_embeddings": true,
+ "_name_or_path": "sentence-transformers/all-MiniLM-L6-v2",
+ "gradient_checkpointing": false,
+ "model_type": "bert",
+ "position_embedding_type": "absolute",
+ "output_attentions": false
+}

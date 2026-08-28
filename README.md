@@ -19,6 +19,7 @@ One full-bleed 3D cloud — a live PCA projection of embedding vectors — with 
 | **Retrieve** | Which chunks of a document semantically match a query? Four chunking strategies, role-correct query/document prefixes, top-N ranking by cosine or euclidean, lexical-overlap highlighting as a tell. |
 | **Classify** | Can you classify with no training? Nearest-prototype over class-mean embeddings, with a *visible* softmax temperature so the confidence is honest. |
 | **Cluster** | What structure falls out with no labels? K-means (k-means++ on the unit hypersphere), silhouette score, and a Rand index against ground-truth topics. |
+| **Anatomy** | What is the model *actually doing*? A custom MiniLM ONNX export (ships with the app, ~23 MB) exposes every internal tensor: walk the pipeline stage by stage — WordPiece ids, embedding + position strips, live attention arcs for all 72 heads with auto-computed roles (prev-token, [SEP] sink, broad…), mean-pool contributions, L2 normalization, and every token's 7-layer trajectory through latent space. |
 
 Click any point and the **scope bar** along the bottom fills with its vitals; pull it up and the full inspector opens — a per-token × dimension heatmap and signed dimension bars that follow along during playback. Every lab ships a short **guide** (the book icon on the rail): a few steps that drive real state, not a static tour. A subtle **spin** toggle on the cloud slowly orbits the camera — everywhere.
 
@@ -85,13 +86,15 @@ Every color in the app — DOM, Three.js materials, canvas scales, per-lab ident
 ```
 src/
 ├── lib/
+│   ├── anatomy/           # Anatomy engine: instrumented-MiniLM loader, head stats, flow stage
 │   ├── corpus/            # Seed sentences for Compare's context toggle
-│   ├── labs/              # The five labs + shared embed orchestration
+│   ├── labs/              # The six labs + shared embed orchestration
 │   │   ├── CompareLab.svelte
 │   │   ├── TrajectoryLab.svelte
 │   │   ├── RAGLab.svelte        # the Retrieve lab
 │   │   ├── ClassifyLab.svelte
 │   │   ├── ClusterLab.svelte
+│   │   ├── AnatomyLab.svelte
 │   │   ├── embed.svelte.ts      # debounced, generation-guarded single/batch embeds
 │   │   └── labState.svelte.ts   # per-lab localStorage persistence
 │   ├── math/              # PCA, k-means, similarity, stats — all unit-tested
@@ -106,6 +109,8 @@ src/
     ├── +layout.ts         # ssr=false (everything is client-only)
     └── +page.svelte       # Rail + lab host + overlays
 ```
+
+The Anatomy lab's model at `static/models/minilm-anatomy/` is `all-MiniLM-L6-v2` re-exported to ONNX with all 7 hidden states and all 6 post-softmax attention tensors as named graph outputs (weights int8, activations fp32 — the visualized attention is exact). `scripts/export_anatomy.py` reproduces it.
 
 ## Known limitations
 

@@ -19,7 +19,7 @@ import { getVectorCache } from '$lib/models/vector-cache.js';
 
 const STATE_KEY = 'embedding-playground:shell:v1';
 
-export type LabId = 'compare' | 'trajectory' | 'rag' | 'classify' | 'cluster';
+export type LabId = 'compare' | 'trajectory' | 'rag' | 'classify' | 'cluster' | 'anatomy';
 
 interface PersistedState {
 	modelId: string;

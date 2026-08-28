@@ -54,6 +54,8 @@
 		points: CloudPoint[];
 		links?: CloudLink[];
 		pathPoints?: string[]; // ordered ids forming a polyline
+		/** Multiple polylines (e.g. one per token across layers). Wins over pathPoints. */
+		paths?: string[][];
 		selectedId?: string | null;
 		/**
 		 * Cinematic follow: while set, the camera's look-at target glides to
@@ -69,10 +71,15 @@
 		points = [],
 		links = [],
 		pathPoints,
+		paths,
 		selectedId = null,
 		focusId = null,
 		onPointClick
 	}: Props = $props();
+
+	const allPaths = $derived<string[][]>(
+		paths ?? (pathPoints && pathPoints.length > 1 ? [pathPoints] : [])
+	);
 
 	let container = $state<HTMLDivElement | undefined>();
 	let canvas = $state<HTMLCanvasElement | undefined>();
@@ -117,8 +124,7 @@
 	let linkObjs: LinkObj[] = [];
 	let linkGroup: THREE.Group | null = null;
 
-	let pathLine: THREE.Line | null = null;
-	let pathIds: string[] = [];
+	let pathLines: { line: THREE.Line; ids: string[] }[] = [];
 
 	let groundGrid: THREE.GridHelper | null = null;
 	let dataCube: THREE.LineSegments | null = null;
@@ -658,42 +664,44 @@
 	}
 
 	function disposePath() {
-		if (pathLine) {
-			scene.remove(pathLine);
-			pathLine.geometry.dispose();
-			(pathLine.material as THREE.Material).dispose();
-			pathLine = null;
+		for (const pl of pathLines) {
+			scene.remove(pl.line);
+			pl.line.geometry.dispose();
+			(pl.line.material as THREE.Material).dispose();
 		}
-		pathIds = [];
+		pathLines = [];
 	}
 
 	function rebuildPath() {
 		disposePath();
-		if (!pathPoints || pathPoints.length < 2) return;
-		pathIds = [...pathPoints];
-		const n = pathIds.length;
-		const positions = new Float32Array(n * 3);
-		const colors = new Float32Array(n * 3);
-		const p = theme.primitives;
-		const hueStart = p.accentHue + 20;
-		const hueEnd = p.contrastHue - 30;
-		for (let i = 0; i < n; i++) {
-			const t = i / Math.max(1, n - 1);
-			const hue = hueStart + (hueEnd - hueStart) * t;
-			const [r, g, b] = oklchToRgb(0.78, p.accentChroma, hue);
-			colors[i * 3] = r;
-			colors[i * 3 + 1] = g;
-			colors[i * 3 + 2] = b;
+		const opacity = allPaths.length > 6 ? 0.55 : 0.9;
+		for (const ids of allPaths) {
+			if (ids.length < 2) continue;
+			const n = ids.length;
+			const positions = new Float32Array(n * 3);
+			const colors = new Float32Array(n * 3);
+			const p = theme.primitives;
+			const hueStart = p.accentHue + 20;
+			const hueEnd = p.contrastHue - 30;
+			for (let i = 0; i < n; i++) {
+				const t = i / Math.max(1, n - 1);
+				const hue = hueStart + (hueEnd - hueStart) * t;
+				const [r, g, b] = oklchToRgb(0.78, p.accentChroma, hue);
+				colors[i * 3] = r;
+				colors[i * 3 + 1] = g;
+				colors[i * 3 + 2] = b;
+			}
+			const geo = new THREE.BufferGeometry();
+			geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+			geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+			const line = new THREE.Line(
+				geo,
+				new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity })
+			);
+			line.frustumCulled = false;
+			scene.add(line);
+			pathLines.push({ line, ids: [...ids] });
 		}
-		const geo = new THREE.BufferGeometry();
-		geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-		geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-		pathLine = new THREE.Line(
-			geo,
-			new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9 })
-		);
-		pathLine.frustumCulled = false;
-		scene.add(pathLine);
 	}
 
 	/** Current animated position of any point id (node or dot). */
@@ -724,10 +732,10 @@
 				lo.line.computeLineDistances();
 			}
 		}
-		if (pathLine && pathIds.length > 1) {
-			const attr = pathLine.geometry.attributes.position as THREE.BufferAttribute;
-			for (let i = 0; i < pathIds.length; i++) {
-				if (currentPos(pathIds[i], _tmpV)) attr.setXYZ(i, _tmpV.x, _tmpV.y, _tmpV.z);
+		for (const pl of pathLines) {
+			const attr = pl.line.geometry.attributes.position as THREE.BufferAttribute;
+			for (let i = 0; i < pl.ids.length; i++) {
+				if (currentPos(pl.ids[i], _tmpV)) attr.setXYZ(i, _tmpV.x, _tmpV.y, _tmpV.z);
 			}
 			attr.needsUpdate = true;
 		}
@@ -781,7 +789,7 @@
 	});
 
 	$effect(() => {
-		void pathPoints;
+		void allPaths;
 		if (!scene) return;
 		rebuildPath();
 	});

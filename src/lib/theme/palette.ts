@@ -167,7 +167,8 @@ export const LAB_HUES = {
 	trajectory: 285, // violet
 	rag: 85, // gold — matches the pinned-query marker
 	classify: 150, // green
-	cluster: 30 // warm red
+	cluster: 30, // warm red
+	anatomy: 340 // pink — the dissection table
 } as const;
 
 /** The hue used for pinned "query" points (RAG / Classify) and their links. */

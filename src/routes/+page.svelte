@@ -9,6 +9,7 @@
 	import RAGLab from '$lib/labs/RAGLab.svelte';
 	import ClassifyLab from '$lib/labs/ClassifyLab.svelte';
 	import ClusterLab from '$lib/labs/ClusterLab.svelte';
+	import AnatomyLab from '$lib/labs/AnatomyLab.svelte';
 
 	onMount(() => {
 		void playground.probeBackends();
@@ -33,6 +34,8 @@
 			<ClassifyLab />
 		{:else if playground.lab === 'cluster'}
 			<ClusterLab />
+		{:else if playground.lab === 'anatomy'}
+			<AnatomyLab />
 		{/if}
 	</main>
 

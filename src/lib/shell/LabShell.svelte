@@ -31,6 +31,8 @@
 		selected?: EmbeddingResult | null;
 		selectedLabel?: string | null;
 		scopeHint?: string;
+		/** Overrides the scope bar's model chip (Anatomy always runs MiniLM). */
+		modelName?: string;
 		guide?: GuideStep[];
 	}
 	let {
@@ -46,6 +48,7 @@
 		selected = null,
 		selectedLabel = null,
 		scopeHint,
+		modelName,
 		guide
 	}: Props = $props();
 
@@ -78,7 +81,7 @@
 		result={selected}
 		label={selectedLabel}
 		hint={scopeHint}
-		modelShortName={playground.model.shortName}
+		modelShortName={modelName ?? playground.model.shortName}
 	/>
 
 	{#if guide && shellUI.guideOpen}
