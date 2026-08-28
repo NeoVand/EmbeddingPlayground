@@ -37,26 +37,26 @@
 	// ---------- chip geometry for the arc layer ----------
 	let rowEl = $state<HTMLDivElement | undefined>();
 	let boxEl = $state<HTMLDivElement | undefined>();
-	let scrollerEl = $state<HTMLDivElement | undefined>();
 	let chipEls: HTMLButtonElement[] = $state([]);
 	let centers = $state<number[]>([]);
+	let centersY = $state<number[]>([]);
 	let rowW = $state(0);
+	let colH = $state(0);
 
 	function measure() {
 		if (!rowEl || !boxEl) return;
-		// Chips' offsetParent is .stage-box, so every SVG spans the box and
-		// shares its coordinate frame — wrapped, centered rows included.
+		// Chips' offsetParent is the positioned container (.stage-box or .vcol),
+		// so the SVGs share its coordinate frame — wrapped, centered rows included.
 		rowW = boxEl.offsetWidth;
-		centers = chipEls.filter(Boolean).map((el) => el.offsetLeft + el.offsetWidth / 2);
+		colH = rowEl.scrollHeight;
+		const chips = chipEls.filter(Boolean);
+		centers = chips.map((el) => el.offsetLeft + el.offsetWidth / 2);
+		centersY = chips.map((el) => el.offsetTop + el.offsetHeight / 2);
 	}
 	$effect(() => {
 		void run;
 		void stage;
-		void tick().then(() => {
-			measure();
-			// Wide token rows start centered instead of pinned to [CLS].
-			if (scrollerEl) scrollerEl.scrollLeft = (scrollerEl.scrollWidth - scrollerEl.clientWidth) / 2;
-		});
+		void tick().then(measure);
 	});
 	$effect(() => {
 		if (!rowEl) return;
@@ -72,7 +72,8 @@
 		w: number;
 		head: number;
 	}
-	const ARC_H = 190;
+	/** Width of the arc gutter to the left of the vertical token column. */
+	const ARC_W = 180;
 
 	const arcs = $derived.by<Arc[]>(() => {
 		if (!run || stage !== 'block') return [];
@@ -114,11 +115,12 @@
 		return arcs.filter((a) => a.q === focus);
 	});
 
+	/** Tokens run top-to-bottom; arcs bow left from the column's shared edge. */
 	function arcPath(a: Arc): string {
-		const x1 = centers[a.q] ?? 0;
-		const x2 = centers[a.k] ?? 0;
-		const lift = Math.min(ARC_H - 14, 34 + Math.abs(x2 - x1) * 0.24 + a.w * 60);
-		return `M ${x1} ${ARC_H} Q ${(x1 + x2) / 2} ${ARC_H - lift} ${x2} ${ARC_H}`;
+		const y1 = centersY[a.q] ?? 0;
+		const y2 = centersY[a.k] ?? 0;
+		const bow = Math.min(ARC_W - 12, 28 + Math.abs(y2 - y1) * 0.26 + a.w * 55);
+		return `M ${ARC_W} ${y1} Q ${ARC_W - bow} ${(y1 + y2) / 2} ${ARC_W} ${y2}`;
 	}
 
 	const selfLoops = $derived.by(() => {
@@ -245,10 +247,12 @@
 		</div>
 
 		{#key stage + ':' + blockIdx}
-			<div class="scroller" bind:this={scrollerEl}>
-				<div class="stage-box" class:fit={stage !== 'block'} bind:this={boxEl}>
-					{#if stage === 'block'}
-						<svg class="arcs" width={rowW} height={ARC_H} aria-hidden="true">
+			<div class="scroller">
+				{#if stage === 'block'}
+					<!-- Vertical layout: tokens read downward, arcs bow into the
+					     left gutter — fits any sentence between the docks. -->
+					<div class="vblock" bind:this={boxEl}>
+						<svg class="varcs" width={ARC_W} height={colH} aria-hidden="true">
 							{#each visibleArcs as a (a.head + '-' + a.q + '-' + a.k)}
 								<path
 									d={arcPath(a)}
@@ -260,19 +264,40 @@
 							{/each}
 							{#each selfLoops as s (s.head + 'l' + s.q)}
 								<circle
-									cx={centers[s.q] ?? 0}
-									cy={ARC_H - 9}
-									r={5 + s.w * 6}
+									cx={ARC_W - 9}
+									cy={centersY[s.q] ?? 0}
+									r={4 + s.w * 5}
 									fill="none"
 									stroke={theme.hueCss(headHue(s.head), { l: 0.72, a: 0.5 })}
 									stroke-width="1.5"
 								/>
 							{/each}
 						</svg>
-					{/if}
-
-					<!-- Only the arc stage needs one long row; the rest wrap and center. -->
-					<div class="tokens-row" bind:this={rowEl} class:tall={stage === 'tokenize'} class:wrap={stage !== 'block'}>
+						<div class="vcol" bind:this={rowEl}>
+							{#each run.tokens as t, i (i)}
+								<div class="vrow">
+									<button
+										class="tok no-select"
+										class:special={t.isSpecial}
+										class:sel={selectedToken === i}
+										class:subword={t.text.startsWith('##')}
+										bind:this={chipEls[i]}
+										onmouseenter={() => (hoverToken = i)}
+										onmouseleave={() => (hoverToken = null)}
+										onclick={() => onSelectToken(selectedToken === i ? null : i)}
+									>
+										{displayTok(t.text)}
+									</button>
+									<span class="dbar" title={`‖Δh‖ = ${deltaNorms[i]?.toFixed(3)}`}>
+										<i style:width={`${((deltaNorms[i] ?? 0) / maxDelta) * 100}%`}></i>
+									</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{:else}
+					<div class="stage-box" bind:this={boxEl}>
+					<div class="tokens-row wrap" bind:this={rowEl} class:tall={stage === 'tokenize'}>
 						{#each run.tokens as t, i (i)}
 							<div class="tok-unit">
 								<button
@@ -293,10 +318,6 @@
 								{:else if stage === 'embed'}
 									<canvas class="vstrip" use:strip={tokenVec(i, 0)}></canvas>
 									<span class="tok-id no-select">+ pos {i}</span>
-								{:else if stage === 'block'}
-									<span class="dbar" title={`‖Δh‖ = ${deltaNorms[i]?.toFixed(3)}`}>
-										<i style:width={`${((deltaNorms[i] ?? 0) / maxDelta) * 100}%`}></i>
-									</span>
 								{:else if stage === 'pool'}
 									<canvas class="vstrip small" use:strip={tokenVec(i, 6)}></canvas>
 									<span class="tok-id tabular no-select">{(contributions[i] ?? 0).toFixed(2)}</span>
@@ -338,7 +359,8 @@
 							</div>
 						</div>
 					{/if}
-				</div>
+					</div>
+				{/if}
 			</div>
 		{/key}
 	</div>
@@ -378,23 +400,42 @@
 	.scroller {
 		width: 100%;
 		max-width: 100%;
-		overflow-x: auto;
-		overflow-y: hidden;
+		min-height: 0;
+		overflow-x: hidden;
+		overflow-y: auto;
 		padding-bottom: 6px;
 	}
 	.stage-box {
 		position: relative;
-		width: max-content;
-		min-width: 100%;
-		margin: 0 auto;
-	}
-	/* Wrapped stages fill the column instead of forcing a side-scroll. */
-	.stage-box.fit {
 		width: 100%;
-		min-width: 0;
 	}
-	svg.arcs {
+
+	/* ---------- vertical attention layout ---------- */
+	.vblock {
+		display: flex;
+		align-items: flex-start;
+		justify-content: center;
+		padding: 4px 0;
+	}
+	svg.varcs {
 		display: block;
+		flex: none;
+	}
+	.vcol {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 7px;
+	}
+	.vrow {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+	.vrow .dbar {
+		flex: none;
+		width: 64px;
 	}
 	.tokens-row {
 		display: flex;
