@@ -539,10 +539,12 @@
 		gap: 7px;
 		margin-top: -2px;
 	}
+	/* Stacked and centered, so the v̄ glyph sits exactly under the strip. */
 	.pool-meta {
 		display: flex;
-		align-items: baseline;
-		gap: 7px;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
 		font-size: 10.5px;
 		color: var(--text-subtle);
 	}
