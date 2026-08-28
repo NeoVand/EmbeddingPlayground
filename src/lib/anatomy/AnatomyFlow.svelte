@@ -531,17 +531,18 @@
 	.pool-funnel svg {
 		display: block;
 	}
+	/* Column, so the pooled strip sits exactly under the funnel tip. */
 	.pool-result {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		justify-content: center;
-		gap: 12px;
+		gap: 7px;
 		margin-top: -2px;
 	}
 	.pool-meta {
 		display: flex;
-		flex-direction: column;
-		gap: 2px;
+		align-items: baseline;
+		gap: 7px;
 		font-size: 10.5px;
 		color: var(--text-subtle);
 	}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "jax-js": {
+      "source": "neovand/jax-js-skill",
+      "sourceType": "github",
+      "skillPath": "skills/jax-js/SKILL.md",
+      "computedHash": "080a99644e032a6413406d85fc7ad8bf9e0adf02157ad46cabd364d8779727ef"
+    }
+  }
+}
