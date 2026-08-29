@@ -10,7 +10,7 @@ An interactive 3D playground for understanding modern text-embedding models. Eve
 
 ## The idea
 
-One full-bleed 3D cloud — a live PCA projection of embedding vectors — with everything else floating on top of it as glass panels. An icon rail on the left switches between five labs, a curriculum that reads top to bottom: *meaning → sequence → retrieval → decision → structure*.
+One full-bleed 3D cloud — a live PCA projection of embedding vectors — with everything else floating on top of it as glass panels. An icon rail on the left switches between six labs, a curriculum that reads top to bottom: *meaning → sequence → retrieval → decision → structure → mechanism*.
 
 | Lab | Question it answers |
 | --- | --- |
@@ -21,7 +21,11 @@ One full-bleed 3D cloud — a live PCA projection of embedding vectors — with 
 | **Cluster** | What structure falls out with no labels? K-means (k-means++ on the unit hypersphere), silhouette score, and a Rand index against ground-truth topics. |
 | **Anatomy** | What is the model *actually doing*? A custom MiniLM ONNX export (ships with the app, ~23 MB) exposes every internal tensor: walk the pipeline stage by stage — WordPiece ids, embedding + position strips, live attention arcs for all 72 heads with auto-computed roles (prev-token, [SEP] sink, broad…), mean-pool contributions, L2 normalization, and every token's 7-layer trajectory through latent space. |
 
-Click any point and the **scope bar** along the bottom fills with its vitals; pull it up and the full inspector opens — a per-token × dimension heatmap and signed dimension bars that follow along during playback. Every lab ships a short **guide** (the book icon on the rail): a few steps that drive real state, not a static tour. A subtle **spin** toggle on the cloud slowly orbits the camera — everywhere.
+Click any point and the **scope bar** along the bottom fills with its vitals; pull it up and the full inspector opens — a per-token × dimension heatmap and signed dimension bars that follow along during playback. In Anatomy, selecting a token repurposes the heatmap: its rows become that token's stops through the network (embedding, then after each block). Every lab ships a short **guide** (the book icon on the rail): a few steps that drive real state, not a static tour. A subtle **spin** toggle on the cloud slowly orbits the camera — everywhere.
+
+### Inside the Anatomy lab
+
+The left dock is the actual forward pass — tokenize → embed + position → six transformer blocks → mean pool → L2 normalize — and each stage renders live from your sentence. Attention is drawn vertically: tokens read downward, arcs bow into a gutter (per-head, or every head's strongest link at once), and each token carries a ‖Δh‖ bar showing how far that block moved it. The head grid badges all 12 heads per block from live statistics (Clark et al. 2019): previous-token heads, [CLS]/[SEP] attention sinks, broad bag-of-words heads. The final stage plots every token's 7-stop trail through latent space — load "two banks" and watch two identical `bank` tokens start at the same point and get pulled apart by context.
 
 ### Curated trajectory presets
 
